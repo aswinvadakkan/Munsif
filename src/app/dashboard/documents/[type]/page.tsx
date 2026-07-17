@@ -1,8 +1,84 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getTemplateById } from "@/lib/document-templates";
+import { getTemplateById, type FormStep, type FormField } from "@/lib/document-templates";
+import { generateDocumentPreview } from "@/lib/document-previews";
+
+/* ───────── localStorage helpers ───────── */
+
+function storageKey(type: string): string {
+  return `munsif_form_${type}`;
+}
+
+function loadSaved(type: string): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(storageKey(type));
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveData(type: string, data: Record<string, string>) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(storageKey(type), JSON.stringify(data));
+  } catch {
+    // quota exceeded — silently ignore
+  }
+}
+
+/* ───────── Validation ───────── */
+
+function validateField(
+  field: FormField,
+  value: string
+): string | null {
+  if (field.required && (!value || value.trim() === "")) {
+    return "This field is required";
+  }
+
+  if (!value || value.trim() === "") return null;
+
+  if (field.type === "email") {
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRe.test(value)) return "Invalid email address";
+  }
+
+  if (field.type === "number") {
+    const num = Number(value);
+    if (isNaN(num)) return "Must be a number";
+    if (field.validation?.min !== undefined && num < field.validation.min) {
+      return `Minimum value is ${field.validation.min}`;
+    }
+    if (field.validation?.max !== undefined && num > field.validation.max) {
+      return `Maximum value is ${field.validation.max}`;
+    }
+  }
+
+  if (
+    (field.type === "text" || field.type === "textarea") &&
+    field.validation?.minLength &&
+    value.length < field.validation.minLength
+  ) {
+    return `At least ${field.validation.minLength} characters required`;
+  }
+
+  return null;
+}
+
+function validateStep(step: FormStep, data: Record<string, string>): Record<string, string> {
+  const errors: Record<string, string> = {};
+  for (const field of step.fields) {
+    const err = validateField(field, data[field.id] || "");
+    if (err) errors[field.id] = err;
+  }
+  return errors;
+}
+
+/* ───────── Main component ───────── */
 
 export default function DocumentQuestionnairePage() {
   const params = useParams();
@@ -12,6 +88,17 @@ export default function DocumentQuestionnairePage() {
 
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [mobileTab, setMobileTab] = useState<"form" | "preview">("form");
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  // Load saved data on mount
+  useEffect(() => {
+    const saved = loadSaved(type);
+    if (Object.keys(saved).length > 0) {
+      setFormData(saved);
+    }
+  }, [type]);
 
   if (!template) {
     return (
@@ -37,62 +124,170 @@ export default function DocumentQuestionnairePage() {
   const step = steps[currentStep];
   const isLastStep = currentStep === steps.length - 1;
 
-  const handleFieldChange = (fieldId: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [fieldId]: value }));
-  };
-
-  const handleNext = () => {
-    if (isLastStep) {
-      const searchParams = new URLSearchParams({
-        type: template.id,
-        ...formData,
+  // Auto-save on every data change
+  const handleFieldChange = useCallback(
+    (fieldId: string, value: string) => {
+      setFormData((prev) => {
+        const next = { ...prev, [fieldId]: value };
+        saveData(type, next);
+        return next;
       });
-      router.push(
-        `/dashboard/documents/${template.id}/preview?${searchParams.toString()}`
-      );
-    } else {
-      setCurrentStep((prev) => prev + 1);
-    }
-  };
+      // Clear error for this field on change
+      if (errors[fieldId]) {
+        setErrors((prev) => {
+          const next = { ...prev };
+          delete next[fieldId];
+          return next;
+        });
+      }
+    },
+    [type, errors]
+  );
 
-  const handleBack = () => {
+  const handleNext = useCallback(() => {
+    const stepErrors = validateStep(step, formData);
+    if (Object.keys(stepErrors).length > 0) {
+      setErrors(stepErrors);
+      return;
+    }
+
+    if (isLastStep) {
+      saveData(type, formData);
+      router.push(`/dashboard/documents/${template.id}/preview`);
+    } else {
+      setIsTransitioning(true);
+      setTimeout(() => {
+        setCurrentStep((prev) => prev + 1);
+        setIsTransitioning(false);
+        setErrors({});
+      }, 150);
+    }
+  }, [step, formData, isLastStep, type, router, template.id]);
+
+  const handleBack = useCallback(() => {
     if (currentStep === 0) {
       router.push("/dashboard/documents");
     } else {
-      setCurrentStep((prev) => prev - 1);
+      setIsTransitioning(true);
+      setTimeout(() => {
+        setCurrentStep((prev) => prev - 1);
+        setIsTransitioning(false);
+        setErrors({});
+      }, 150);
     }
-  };
+  }, [currentStep, router]);
+
+  const handleStepClick = useCallback(
+    (idx: number) => {
+      if (idx < currentStep) {
+        setIsTransitioning(true);
+        setTimeout(() => {
+          setCurrentStep(idx);
+          setIsTransitioning(false);
+          setErrors({});
+        }, 150);
+      }
+    },
+    [currentStep]
+  );
+
+  // Live preview content
+  const previewContent = useMemo(
+    () => generateDocumentPreview(template, formData),
+    [template, formData]
+  );
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
+      {/* Back link */}
       <button
         onClick={() => router.push("/dashboard/documents")}
-        className="text-sm text-stone-500 hover:text-teal-600 transition-colors mb-4"
+        className="text-sm text-stone-500 hover:text-teal-600 transition-colors mb-4 inline-flex items-center gap-1"
       >
-        ← Back to Documents
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+        Back to Documents
       </button>
 
-      <div className="flex items-start gap-4 mb-8">
-        <div className="text-4xl">{template.icon}</div>
-        <div>
-          <h1 className="text-2xl md:text-3xl font-display font-bold text-stone-900">
+      {/* Header */}
+      <div className="flex items-start gap-4 mb-6">
+        <div className="text-4xl flex-shrink-0">{template.icon}</div>
+        <div className="min-w-0">
+          <h1 className="text-xl md:text-2xl font-display font-bold text-stone-900">
             {template.name}
           </h1>
-          <p className="text-stone-500 mt-1">{template.description}</p>
+          <p className="text-stone-500 text-sm mt-0.5">{template.description}</p>
         </div>
       </div>
 
-      {/* Step Progress */}
+      {/* ─── Step Progress Indicator ─── */}
       <div className="mb-8">
-        <div className="flex items-center justify-between mb-3">
+        <div className="hidden sm:flex items-center justify-center gap-0">
+          {steps.map((s, idx) => {
+            const isActive = idx === currentStep;
+            const isCompleted = idx < currentStep;
+            return (
+              <div key={s.id} className="flex items-center flex-1 last:flex-none">
+                <button
+                  onClick={() => handleStepClick(idx)}
+                  disabled={idx > currentStep}
+                  className={`flex flex-col items-center gap-1.5 min-w-[80px] ${
+                    idx > currentStep ? "cursor-default" : "cursor-pointer"
+                  }`}
+                >
+                  {/* Circle */}
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-all duration-200 ${
+                      isCompleted
+                        ? "bg-teal-600 border-teal-600 text-white"
+                        : isActive
+                        ? "border-teal-600 text-teal-600 bg-teal-50"
+                        : "border-stone-300 text-stone-400 bg-white"
+                    }`}
+                  >
+                    {isCompleted ? (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      idx + 1
+                    )}
+                  </div>
+                  <span
+                    className={`text-xs font-medium hidden md:block text-center ${
+                      isActive ? "text-teal-700" : isCompleted ? "text-teal-600" : "text-stone-400"
+                    }`}
+                  >
+                    {s.title}
+                  </span>
+                </button>
+
+                {/* Connector line */}
+                {idx < steps.length - 1 && (
+                  <div className="flex-1 h-0.5 mx-2 mt-[-20px]">
+                    <div
+                      className={`h-full rounded transition-all duration-300 ${
+                        idx < currentStep ? "bg-teal-600" : "bg-stone-200"
+                      }`}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Mobile step label */}
+        <div className="sm:hidden flex items-center justify-between mb-3">
           <span className="text-sm font-medium text-teal-600">
             Step {currentStep + 1} of {steps.length}
           </span>
           <span className="text-sm text-stone-400">
-            {Math.round(((currentStep + 1) / steps.length) * 100)}% complete
+            {Math.round(((currentStep + 1) / steps.length) * 100)}%
           </span>
         </div>
-        <div className="h-2 bg-stone-200 rounded-full overflow-hidden">
+        <div className="sm:hidden h-1.5 bg-stone-200 rounded-full overflow-hidden">
           <div
             className="h-full bg-teal-600 rounded-full transition-all duration-300"
             style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
@@ -100,106 +295,224 @@ export default function DocumentQuestionnairePage() {
         </div>
       </div>
 
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-stone-900">{step.title}</h2>
-      </div>
+      {/* ─── Desktop: Split Layout | Mobile: Tabs ─── */}
 
-      {/* Form Fields */}
-      <div className="card p-6 md:p-8 mb-6">
-        <div className="space-y-5">
-          {step.fields.map((field) => (
-            <div key={field.id}>
-              <label
-                htmlFor={field.id}
-                className="block text-sm font-medium text-stone-700 mb-1.5"
-              >
-                {field.label}
-                {field.required && <span className="text-saffron-500 ml-1">*</span>}
-              </label>
-
-              {field.type === "textarea" ? (
-                <textarea
-                  id={field.id}
-                  className="input-field min-h-[100px] resize-y"
-                  placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
-                  value={formData[field.id] || ""}
-                  onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                  required={field.required}
-                />
-              ) : field.type === "select" ? (
-                <select
-                  id={field.id}
-                  className="input-field"
-                  value={formData[field.id] || ""}
-                  onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                  required={field.required}
-                >
-                  <option value="">Select an option...</option>
-                  {field.options?.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              ) : field.type === "date" ? (
-                <input
-                  id={field.id}
-                  type="date"
-                  className="input-field"
-                  value={formData[field.id] || ""}
-                  onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                  required={field.required}
-                />
-              ) : field.type === "number" ? (
-                <input
-                  id={field.id}
-                  type="number"
-                  className="input-field"
-                  placeholder={field.placeholder || "0"}
-                  value={formData[field.id] || ""}
-                  onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                  required={field.required}
-                />
-              ) : (
-                <input
-                  id={field.id}
-                  type={field.type}
-                  className="input-field"
-                  placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
-                  value={formData[field.id] || ""}
-                  onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                  required={field.required}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Navigation */}
-      <div className="flex items-center justify-between">
-        <button onClick={handleBack} className="btn-secondary">
-          {currentStep === 0 ? "Cancel" : "← Back"}
+      {/* Mobile tab toggle */}
+      <div className="lg:hidden flex mb-4 bg-stone-100 rounded-xl p-1">
+        <button
+          onClick={() => setMobileTab("form")}
+          className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+            mobileTab === "form"
+              ? "bg-white text-stone-900 shadow-sm"
+              : "text-stone-500"
+          }`}
+        >
+          ✏️ Form
         </button>
-        <button onClick={handleNext} className="btn-primary">
-          {isLastStep ? "Preview Document →" : "Next →"}
+        <button
+          onClick={() => setMobileTab("preview")}
+          className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+            mobileTab === "preview"
+              ? "bg-white text-stone-900 shadow-sm"
+              : "text-stone-500"
+          }`}
+        >
+          📄 Preview
         </button>
       </div>
 
-      {/* Step Dots (mobile) */}
-      <div className="flex items-center justify-center gap-2 mt-6 sm:hidden">
-        {steps.map((_, idx) => (
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* ─── Form Panel ─── */}
+        <div
+          className={`lg:w-[60%] ${
+            mobileTab === "preview" && "hidden lg:block"
+          }`}
+        >
           <div
-            key={idx}
-            className={`w-2 h-2 rounded-full transition-colors ${
-              idx === currentStep
-                ? "bg-teal-600"
-                : idx < currentStep
-                ? "bg-teal-300"
-                : "bg-stone-200"
+            className={`card p-6 md:p-8 transition-opacity duration-150 ${
+              isTransitioning ? "opacity-0" : "opacity-100"
             }`}
-          />
-        ))}
+          >
+            <h2 className="text-lg font-display font-semibold text-stone-900 mb-6">
+              {step.title}
+            </h2>
+
+            <div className="space-y-5">
+              {step.fields.map((field: FormField) => (
+                <div key={field.id}>
+                  <label
+                    htmlFor={field.id}
+                    className="block text-sm font-medium text-stone-700 mb-1.5"
+                  >
+                    {field.label}
+                    {field.required && (
+                      <span className="text-red-500 ml-1">*</span>
+                    )}
+                  </label>
+
+                  {field.type === "textarea" ? (
+                    <textarea
+                      id={field.id}
+                      className={`input-field min-h-[90px] resize-y ${
+                        errors[field.id] ? "!border-red-400 !ring-red-400" : ""
+                      }`}
+                      placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                      value={formData[field.id] || ""}
+                      onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                    />
+                  ) : field.type === "select" ? (
+                    <select
+                      id={field.id}
+                      className={`input-field ${
+                        errors[field.id] ? "!border-red-400 !ring-red-400" : ""
+                      }`}
+                      value={formData[field.id] || ""}
+                      onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                    >
+                      <option value="">Select an option...</option>
+                      {field.options?.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : field.type === "date" ? (
+                    <input
+                      id={field.id}
+                      type="date"
+                      className={`input-field ${
+                        errors[field.id] ? "!border-red-400 !ring-red-400" : ""
+                      }`}
+                      value={formData[field.id] || ""}
+                      onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                    />
+                  ) : field.type === "number" ? (
+                    <input
+                      id={field.id}
+                      type="number"
+                      className={`input-field ${
+                        errors[field.id] ? "!border-red-400 !ring-red-400" : ""
+                      }`}
+                      placeholder={field.placeholder || "0"}
+                      value={formData[field.id] || ""}
+                      onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                    />
+                  ) : field.type === "email" ? (
+                    <input
+                      id={field.id}
+                      type="email"
+                      className={`input-field ${
+                        errors[field.id] ? "!border-red-400 !ring-red-400" : ""
+                      }`}
+                      placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                      value={formData[field.id] || ""}
+                      onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                    />
+                  ) : (
+                    <input
+                      id={field.id}
+                      type="text"
+                      className={`input-field ${
+                        errors[field.id] ? "!border-red-400 !ring-red-400" : ""
+                      }`}
+                      placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                      value={formData[field.id] || ""}
+                      onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                    />
+                  )}
+
+                  {errors[field.id] && (
+                    <p className="mt-1.5 text-sm text-red-500">{errors[field.id]}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Navigation buttons */}
+          <div className="flex items-center justify-between mt-6">
+            <button onClick={handleBack} className="btn-secondary">
+              {currentStep === 0 ? (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Cancel
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Back
+                </>
+              )}
+            </button>
+            <button onClick={handleNext} className="btn-primary">
+              {isLastStep ? (
+                <>
+                  Generate Document
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </>
+              ) : (
+                <>
+                  Next
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* ─── Preview Panel ─── */}
+        <div
+          className={`lg:w-[40%] ${
+            mobileTab === "form" && "hidden lg:block"
+          }`}
+        >
+          <div className="lg:sticky lg:top-24">
+            {/* Preview header */}
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-stone-500 uppercase tracking-wide">
+                Live Preview
+              </h3>
+              <span className="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                Auto-updating
+              </span>
+            </div>
+
+            {/* Document styled preview */}
+            <div className="bg-white rounded-2xl border border-stone-200 shadow-elevated overflow-hidden">
+              {/* Decorative top bar */}
+              <div className="h-1.5 bg-teal-600" />
+
+              <div className="p-5 md:p-6">
+                {/* Document content in legal style */}
+                <div className="font-serif text-stone-800 text-sm leading-relaxed whitespace-pre-wrap max-h-[60vh] lg:max-h-[70vh] overflow-y-auto">
+                  {previewContent || (
+                    <p className="text-stone-400 italic font-sans">
+                      Start filling in the form to see a live preview of your
+                      document here.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* AI Disclaimer */}
+              <div className="bg-amber-50 border-t border-amber-100 px-4 py-2.5">
+                <p className="text-amber-700 text-[11px] leading-relaxed">
+                  ⚠️ This preview is AI-generated and should be reviewed by a
+                  licensed legal professional before use. Munsif AI is not a law
+                  firm.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
