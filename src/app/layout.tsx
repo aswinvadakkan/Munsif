@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-import ConvexClientProvider from "@/lib/convex.tsx";
+import ConvexClientProvider from "@/lib/convex";
 import "@/styles/globals.css";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: {
