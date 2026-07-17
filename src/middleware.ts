@@ -1,24 +1,14 @@
-import {
-  convexAuthNextjsMiddleware,
-  createRouteMatcher,
-  nextjsMiddlewareRedirect,
-} from "@convex-dev/auth/nextjs/server";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-const isDashboardRoute = createRouteMatcher("/dashboard/:path*");
-const isAuthRoute = createRouteMatcher(["/login", "/signup"]);
+// TODO: Replace with Convex auth middleware once Convex deployment is connected.
+// The real middleware is on the feat/auth branch at:
+// https://github.com/aswinvadakkan/Munsif/blob/feat/auth/src/middleware.ts
 
-export default convexAuthNextjsMiddleware(
-  async (request, { convexAuth }) => {
-    const authenticated = await convexAuth.isAuthenticated();
+export default function middleware(_request: NextRequest) {
+  return NextResponse.next();
+}
 
-    // Protect /dashboard/* — redirect unauthenticated to /login
-    if (isDashboardRoute(request) && !authenticated) {
-      return nextjsMiddlewareRedirect(request, "/login");
-    }
-
-    // Redirect authenticated users away from /login and /signup
-    if (isAuthRoute(request) && authenticated) {
-      return nextjsMiddlewareRedirect(request, "/dashboard");
-    }
-  },
-);
+export const config = {
+  matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],
+};

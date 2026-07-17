@@ -1,23 +1,15 @@
 "use client";
 
-import { ConvexReactClient } from "convex/react";
-import { ConvexAuthNextjsProvider } from "@convex-dev/auth/nextjs";
 import { ReactNode } from "react";
 
-const convex = new ConvexReactClient(
-  process.env.NEXT_PUBLIC_CONVEX_URL!
-);
+// TODO: Replace with real ConvexClientProvider once Convex deployment is connected.
+// The real provider is on the feat/auth branch.
 
 export default function ConvexClientProvider({
   children,
 }: {
   children: ReactNode;
 }) {
-  return (
-    <ConvexAuthNextjsProvider client={convex}>
-      {children}
-    </ConvexAuthNextjsProvider>
-  );
+  // Placeholder: render children without Convex provider until configured
+  return <>{children}</>;
 }
-
-export { convex };
