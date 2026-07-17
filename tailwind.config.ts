@@ -53,6 +53,7 @@ const config: Config = {
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
         display: ['Sora', 'Inter', 'system-ui', 'sans-serif'],
+        serif: ['Georgia', 'Cambria', '"Times New Roman"', 'Times', 'serif'],
       },
       borderRadius: {
         '2xl': '16px',
