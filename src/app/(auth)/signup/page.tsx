@@ -1,9 +1,69 @@
 "use client";
 
+import { useState, FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuthActions } from "@convex-dev/auth/react";
 import { DisclaimerBanner } from "@/components/ui/DisclaimerBanner";
 
 export default function SignupPage() {
+  const { signIn } = useAuthActions();
+  const router = useRouter();
+
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
+  const [step, setStep] = useState<"form" | "otp">("form");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSendCode = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const result = await signIn("resend", { email, name });
+      if (!result.signingIn) {
+        setStep("otp");
+      } else {
+        router.push("/dashboard");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send code. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      await signIn("resend", { email, code });
+      router.push("/dashboard");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Invalid code. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError(null);
+    setLoading(true);
+
+    try {
+      await signIn("google", { redirectTo: "/dashboard" });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Google sign-in failed. Please try again.");
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-stone-50">
       <DisclaimerBanner />
@@ -30,61 +90,146 @@ export default function SignupPage() {
 
           {/* Signup Form */}
           <div className="card p-6 md:p-8">
-            <form className="space-y-5">
-              {/* Name */}
-              <div>
-                <label
-                  htmlFor="name"
-                  className="block text-sm font-medium text-stone-700 mb-1.5"
-                >
-                  Full Name
-                </label>
-                <input
-                  id="name"
-                  type="text"
-                  className="input-field"
-                  placeholder="Your full name"
-                  required
-                />
-              </div>
+            {step === "form" ? (
+              <form onSubmit={handleSendCode} className="space-y-5">
+                {/* Name */}
+                <div>
+                  <label
+                    htmlFor="name"
+                    className="block text-sm font-medium text-stone-700 mb-1.5"
+                  >
+                    Full Name
+                  </label>
+                  <input
+                    id="name"
+                    type="text"
+                    className="input-field"
+                    placeholder="Your full name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    disabled={loading}
+                  />
+                </div>
 
-              {/* Email */}
-              <div>
-                <label
-                  htmlFor="email"
-                  className="block text-sm font-medium text-stone-700 mb-1.5"
-                >
-                  Email Address
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  className="input-field"
-                  placeholder="you@example.com"
-                  required
-                />
-              </div>
+                {/* Email */}
+                <div>
+                  <label
+                    htmlFor="email"
+                    className="block text-sm font-medium text-stone-700 mb-1.5"
+                  >
+                    Email Address
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    className="input-field"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={loading}
+                  />
+                </div>
 
-              {/* Phone */}
-              <div>
-                <label
-                  htmlFor="phone"
-                  className="block text-sm font-medium text-stone-700 mb-1.5"
-                >
-                  Phone Number <span className="text-stone-400">(optional)</span>
-                </label>
-                <input
-                  id="phone"
-                  type="tel"
-                  className="input-field"
-                  placeholder="+91 98765 43210"
-                />
-              </div>
+                {/* Phone */}
+                <div>
+                  <label
+                    htmlFor="phone"
+                    className="block text-sm font-medium text-stone-700 mb-1.5"
+                  >
+                    Phone Number <span className="text-stone-400">(optional)</span>
+                  </label>
+                  <input
+                    id="phone"
+                    type="tel"
+                    className="input-field"
+                    placeholder="+91 98765 43210"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    disabled={loading}
+                  />
+                </div>
 
-              <button type="submit" className="btn-primary w-full">
-                Create Account
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  className="btn-primary w-full"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <Spinner />
+                      Sending Code...
+                    </span>
+                  ) : (
+                    "Create Account"
+                  )}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyOtp} className="space-y-5">
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1.5">
+                    Email Address
+                  </label>
+                  <p className="text-stone-900 text-sm font-medium">{email}</p>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="otp"
+                    className="block text-sm font-medium text-stone-700 mb-1.5"
+                  >
+                    Verification Code
+                  </label>
+                  <input
+                    id="otp"
+                    type="text"
+                    className="input-field"
+                    placeholder="6-digit code"
+                    maxLength={6}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    required
+                    disabled={loading}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn-primary w-full"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <Spinner />
+                      Verifying...
+                    </span>
+                  ) : (
+                    "Verify & Create Account"
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  className="btn-secondary w-full"
+                  onClick={() => {
+                    setStep("form");
+                    setCode("");
+                    setError(null);
+                  }}
+                  disabled={loading}
+                >
+                  ← Back
+                </button>
+              </form>
+            )}
+
+            {error && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                {error}
+              </div>
+            )}
 
             {/* Divider */}
             <div className="relative my-6">
@@ -99,7 +244,11 @@ export default function SignupPage() {
             </div>
 
             {/* Google Auth */}
-            <button className="btn-secondary w-full !bg-white border border-stone-300 hover:!bg-stone-50">
+            <button
+              className="btn-secondary w-full !bg-white border border-stone-300 hover:!bg-stone-50"
+              onClick={handleGoogleSignIn}
+              disabled={loading}
+            >
               <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
                 <path
                   fill="#4285F4"
@@ -131,5 +280,30 @@ export default function SignupPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function Spinner() {
+  return (
+    <svg
+      className="animate-spin h-4 w-4"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+      />
+    </svg>
   );
 }
