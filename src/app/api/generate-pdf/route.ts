@@ -37,7 +37,9 @@ export async function POST(request: NextRequest) {
     });
 
     // Return the PDF as a download
-    return new NextResponse(result.buffer, {
+    // Convert Buffer to Uint8Array for NextResponse BodyInit compatibility
+    const pdfArray = new Uint8Array(result.buffer);
+    return new NextResponse(pdfArray, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
