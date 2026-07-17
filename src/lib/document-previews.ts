@@ -1,7 +1,7 @@
 /**
  * Document preview generators.
- * Produces clean, legal-document-formatted text from user form data
- * for live preview in the questionnaire and final preview page.
+ * Produces clean, semantic HTML from user form data
+ * for live preview in the questionnaire and final PDF generation.
  */
 
 import type { DocumentTemplate } from "./document-templates";
@@ -10,173 +10,175 @@ function getSelectLabel(
   value: string | undefined,
   options: { value: string; label: string }[] | undefined
 ): string {
-  if (!value || !options) return value || "—";
+  if (!value || !options) return esc(value || "—");
   const opt = options.find((o) => o.value === value);
-  return opt?.label ?? value;
+  return esc(opt?.label ?? value);
 }
 
 function formatDate(value: string | undefined): string {
   if (!value) return "_______________";
   try {
     const d = new Date(value);
-    if (isNaN(d.getTime())) return value;
+    if (isNaN(d.getTime())) return esc(value);
     return d.toLocaleDateString("en-IN", {
       day: "numeric",
       month: "long",
       year: "numeric",
     });
   } catch {
-    return value;
+    return esc(value);
   }
 }
 
 function formatINR(value: string | undefined): string {
   if (!value) return "₹________";
   const num = Number(value);
-  if (isNaN(num)) return value;
+  if (isNaN(num)) return esc(value);
   return "₹" + num.toLocaleString("en-IN");
 }
 
-/**
- * Generate a professional rental agreement preview.
- */
-export function buildRentalAgreementPreview(data: Record<string, string>): string {
-  const today = new Date().toLocaleDateString("en-IN", {
+function esc(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function todayFormatted(): string {
+  return new Date().toLocaleDateString("en-IN", {
     day: "numeric",
     month: "long",
     year: "numeric",
   });
+}
 
-  const lines: string[] = [];
+/**
+ * Generate a professional rental agreement preview as semantic HTML.
+ */
+export function buildRentalAgreementPreview(data: Record<string, string>): string {
+  const today = todayFormatted();
 
-  lines.push("RENTAL AGREEMENT");
-  lines.push("");
-  lines.push(
-    `This Rental Agreement (hereinafter referred to as the "Agreement") is made and entered into on this ${today}, by and between:`
+  const parts: string[] = [];
+
+  // Title
+  parts.push(`<h1>RENTAL AGREEMENT</h1>`);
+  parts.push(
+    `<p>This Rental Agreement (hereinafter referred to as the "Agreement") is made and entered into on this ${today}, by and between:</p>`
   );
-  lines.push("");
 
-  // Parties
-  lines.push("LANDLORD:");
-  lines.push(`  ${data.landlordName || "_______________"}`);
-  lines.push(`  ${data.landlordAddress || "_______________"}`);
-  lines.push("");
-  lines.push("AND");
-  lines.push("");
-  lines.push("TENANT:");
-  lines.push(`  ${data.tenantName || "_______________"}`);
-  lines.push(`  ${data.tenantAddress || "_______________"}`);
-  lines.push("");
+  // Parties table
+  parts.push(`<h2>PARTIES</h2>`);
+  parts.push(`<table class="parties">`);
+  parts.push(`<tr><th style="width:50%">LANDLORD</th><th style="width:50%">TENANT</th></tr>`);
+  parts.push(`<tr>`);
+  parts.push(`<td><strong>Name:</strong> ${esc(data.landlordName || "_______________")}<br><strong>Address:</strong> ${esc(data.landlordAddress || "_______________")}</td>`);
+  parts.push(`<td><strong>Name:</strong> ${esc(data.tenantName || "_______________")}<br><strong>Address:</strong> ${esc(data.tenantAddress || "_______________")}</td>`);
+  parts.push(`</tr>`);
+  parts.push(`</table>`);
 
-  lines.push(
-    "WHEREAS the Landlord is the owner of the property described below and wishes to let out the same on rent, and the Tenant has agreed to take the property on rent on the terms and conditions hereinafter appearing."
-  );
-  lines.push("");
+  // Recital
+  parts.push(`<p>WHEREAS the Landlord is the owner of the property described below and wishes to let out the same on rent, and the Tenant has agreed to take the property on rent on the terms and conditions hereinafter appearing.</p>`);
+  parts.push(`<p><em>NOW THIS AGREEMENT WITNESSETH AS FOLLOWS:</em></p>`);
 
-  lines.push("NOW THIS AGREEMENT WITNESSETH AS FOLLOWS:");
-  lines.push("");
-
-  // Property
-  lines.push("1. PROPERTY DETAILS");
-  lines.push(`   Address: ${data.propertyAddress || "_______________"}`);
+  // Property details
+  parts.push(`<h2>1. PROPERTY DETAILS</h2>`);
   const propType = getSelectLabel(data.propertyType, [
     { value: "residential", label: "Residential" },
     { value: "commercial", label: "Commercial" },
   ]);
-  lines.push(`   Type: ${propType}`);
   const furnish = getSelectLabel(data.furnishing, [
     { value: "unfurnished", label: "Unfurnished" },
     { value: "semi-furnished", label: "Semi-Furnished" },
     { value: "fully-furnished", label: "Fully Furnished" },
   ]);
-  lines.push(`   Furnishing: ${furnish}`);
-  lines.push("");
+  parts.push(`<table class="terms">`);
+  parts.push(`<tr><td>Address:</td><td>${esc(data.propertyAddress || "_______________")}</td></tr>`);
+  parts.push(`<tr><td>Property Type:</td><td>${propType}</td></tr>`);
+  parts.push(`<tr><td>Furnishing:</td><td>${furnish}</td></tr>`);
+  parts.push(`</table>`);
 
   // Terms
-  lines.push("2. TERMS OF TENANCY");
-  lines.push(`   Monthly Rent: ${formatINR(data.monthlyRent)}`);
-  lines.push(`   Security Deposit: ${formatINR(data.securityDeposit)}`);
-  lines.push(`   Lease Start Date: ${formatDate(data.leaseStart)}`);
-  lines.push(`   Lease Duration: ${data.leaseDuration || "__"} months`);
-  lines.push(`   Notice Period: ${data.noticePeriod || "__"} days`);
-  lines.push("");
+  parts.push(`<h2>2. TERMS OF TENANCY</h2>`);
+  parts.push(`<table class="terms">`);
+  parts.push(`<tr><td>Monthly Rent:</td><td>${formatINR(data.monthlyRent)}</td></tr>`);
+  parts.push(`<tr><td>Security Deposit:</td><td>${formatINR(data.securityDeposit)}</td></tr>`);
+  parts.push(`<tr><td>Lease Start Date:</td><td>${formatDate(data.leaseStart)}</td></tr>`);
+  parts.push(`<tr><td>Lease Duration:</td><td>${esc(data.leaseDuration || "__")} months</td></tr>`);
+  parts.push(`<tr><td>Notice Period:</td><td>${esc(data.noticePeriod || "__")} days</td></tr>`);
+  parts.push(`</table>`);
 
-  // Clauses
-  lines.push("3. ADDITIONAL CLAUSES");
+  // Additional clauses
+  parts.push(`<h2>3. ADDITIONAL CLAUSES</h2>`);
   const petPolicy = getSelectLabel(data.petPolicy, [
     { value: "yes", label: "Pets Allowed" },
     { value: "no", label: "No Pets Allowed" },
   ]);
-  lines.push(`   Pet Policy: ${petPolicy}`);
   const subletting = getSelectLabel(data.subletting, [
     { value: "yes", label: "Subletting Allowed" },
     { value: "no", label: "Subletting Not Allowed" },
   ]);
-  lines.push(`   Subletting: ${subletting}`);
   const maintenance = getSelectLabel(data.maintenance, [
     { value: "landlord", label: "Landlord" },
     { value: "tenant", label: "Tenant" },
     { value: "shared", label: "Shared" },
   ]);
-  lines.push(`   Maintenance Responsibility: ${maintenance}`);
+  parts.push(`<table class="terms">`);
+  parts.push(`<tr><td>Pet Policy:</td><td>${petPolicy}</td></tr>`);
+  parts.push(`<tr><td>Subletting:</td><td>${subletting}</td></tr>`);
+  parts.push(`<tr><td>Maintenance Responsibility:</td><td>${maintenance}</td></tr>`);
   if (data.specialConditions) {
-    lines.push(`   Special Conditions: ${data.specialConditions}`);
+    parts.push(`<tr><td>Special Conditions:</td><td>${esc(data.specialConditions)}</td></tr>`);
   }
-  lines.push("");
+  parts.push(`</table>`);
+
+  // Legal reference
+  parts.push(`<p class="ica-ref">This Agreement is governed by the provisions of the Indian Contract Act, 1872 and applicable state-specific rent control legislation. Stamp duty as applicable under the Indian Stamp Act, 1899 and relevant state stamp acts shall be borne by the Tenant.</p>`);
 
   // Signatures
-  lines.push("IN WITNESS WHEREOF, the parties hereto have signed this Agreement on the date first above written.");
-  lines.push("");
-  lines.push("_________________________          _________________________");
-  lines.push("     (Landlord)                          (Tenant)");
-  lines.push("");
+  parts.push(`<div class="signature-block">`);
+  parts.push(`<p>IN WITNESS WHEREOF, the parties hereto have signed this Agreement on the date first above written.</p>`);
+  parts.push(`<div class="signatures-row">`);
+  parts.push(`<div class="signature-line"><div class="line"></div><div class="label">Landlord</div></div>`);
+  parts.push(`<div class="signature-line"><div class="line"></div><div class="label">Tenant</div></div>`);
+  parts.push(`</div>`);
+  parts.push(`</div>`);
 
-  return lines.join("\n");
+  return parts.join("\n");
 }
 
 /**
- * Generate a professional NDA preview.
+ * Generate a professional NDA preview as semantic HTML.
  */
 export function buildNDAPreview(data: Record<string, string>): string {
-  const today = new Date().toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  const today = todayFormatted();
 
-  const lines: string[] = [];
+  const parts: string[] = [];
 
-  lines.push("NON-DISCLOSURE AGREEMENT");
-  lines.push("");
-  lines.push(
-    `This Non-Disclosure Agreement (hereinafter referred to as the "Agreement") is made and entered into on this ${today}, by and between:`
+  // Title
+  parts.push(`<h1>NON-DISCLOSURE AGREEMENT</h1>`);
+  parts.push(
+    `<p>This Non-Disclosure Agreement (hereinafter referred to as the "Agreement") is made and entered into on this ${today}, by and between:</p>`
   );
-  lines.push("");
 
-  // Parties
-  lines.push("DISCLOSING PARTY:");
-  lines.push(`  ${data.disclosingParty || "_______________"}`);
-  lines.push(`  ${data.disclosingPartyAddress || "_______________"}`);
-  lines.push("");
-  lines.push("AND");
-  lines.push("");
-  lines.push("RECEIVING PARTY:");
-  lines.push(`  ${data.receivingParty || "_______________"}`);
-  lines.push(`  ${data.receivingPartyAddress || "_______________"}`);
-  lines.push("");
+  // Parties table
+  parts.push(`<h2>PARTIES</h2>`);
+  parts.push(`<table class="parties">`);
+  parts.push(`<tr><th style="width:50%">DISCLOSING PARTY</th><th style="width:50%">RECEIVING PARTY</th></tr>`);
+  parts.push(`<tr>`);
+  parts.push(`<td><strong>Name:</strong> ${esc(data.disclosingParty || "_______________")}<br><strong>Address:</strong> ${esc(data.disclosingPartyAddress || "_______________")}</td>`);
+  parts.push(`<td><strong>Name:</strong> ${esc(data.receivingParty || "_______________")}<br><strong>Address:</strong> ${esc(data.receivingPartyAddress || "_______________")}</td>`);
+  parts.push(`</tr>`);
+  parts.push(`</table>`);
 
-  lines.push(
-    "WHEREAS the Disclosing Party possesses certain confidential and proprietary information which it desires to disclose to the Receiving Party for a specified purpose, and the Receiving Party is willing to receive such information subject to the terms and conditions set forth herein."
+  // Recital
+  parts.push(
+    `<p>WHEREAS the Disclosing Party possesses certain confidential and proprietary information which it desires to disclose to the Receiving Party for a specified purpose, and the Receiving Party is willing to receive such information subject to the terms and conditions set forth herein.</p>`
   );
-  lines.push("");
-
-  lines.push("NOW THEREFORE, in consideration of the mutual promises and covenants contained herein, the parties agree as follows:");
-  lines.push("");
+  parts.push(`<p><em>NOW THEREFORE, in consideration of the mutual promises and covenants contained herein, the parties agree as follows:</em></p>`);
 
   // Scope
-  lines.push("1. PURPOSE & SCOPE");
-  lines.push(`   Purpose of Disclosure: ${data.purpose || "_______________"}`);
-  lines.push(`   Confidentiality Duration: ${data.duration || "__"} months from the date hereof`);
+  parts.push(`<h2>1. PURPOSE &amp; SCOPE</h2>`);
   const stateOpts = [
     { value: "maharashtra", label: "Maharashtra" },
     { value: "delhi", label: "Delhi (NCT)" },
@@ -210,50 +212,58 @@ export function buildNDAPreview(data: Record<string, string>): string {
     { value: "chandigarh", label: "Chandigarh" },
     { value: "puducherry", label: "Puducherry" },
   ];
-  lines.push(`   Governing Law: State of ${getSelectLabel(data.governingState, stateOpts)}`);
-  lines.push("");
+  const gs = getSelectLabel(data.governingState, stateOpts);
 
-  // Terms
-  lines.push("2. ADDITIONAL TERMS");
+  parts.push(`<table class="terms">`);
+  parts.push(`<tr><td>Purpose of Disclosure:</td><td>${esc(data.purpose || "_______________")}</td></tr>`);
+  parts.push(`<tr><td>Confidentiality Duration:</td><td>${esc(data.duration || "__")} months from the date hereof</td></tr>`);
+  parts.push(`<tr><td>Governing Law:</td><td>State of ${gs}</td></tr>`);
+  parts.push(`</table>`);
+
+  // Additional terms
+  parts.push(`<h2>2. ADDITIONAL TERMS</h2>`);
   const nonSolicit = getSelectLabel(data.nonSolicitation, [
     { value: "yes", label: "Included" },
     { value: "no", label: "Not Included" },
   ]);
-  lines.push(`   Non-Solicitation Clause: ${nonSolicit}`);
   const nonCompete = getSelectLabel(data.nonCompete, [
     { value: "yes", label: "Included" },
     { value: "no", label: "Not Included" },
   ]);
-  lines.push(`   Non-Compete Clause: ${nonCompete}`);
   const remedies = getSelectLabel(data.remediesClause, [
     { value: "standard", label: "Standard (Injunction + Damages)" },
     { value: "arbitration", label: "Arbitration" },
   ]);
-  lines.push(`   Remedies: ${remedies}`);
+  parts.push(`<table class="terms">`);
+  parts.push(`<tr><td>Non-Solicitation Clause:</td><td>${nonSolicit}</td></tr>`);
+  parts.push(`<tr><td>Non-Compete Clause:</td><td>${nonCompete}</td></tr>`);
+  parts.push(`<tr><td>Remedies:</td><td>${remedies}</td></tr>`);
   if (data.specialConditions) {
-    lines.push(`   Special Conditions: ${data.specialConditions}`);
+    parts.push(`<tr><td>Special Conditions:</td><td>${esc(data.specialConditions)}</td></tr>`);
   }
-  lines.push("");
+  parts.push(`</table>`);
 
-  lines.push("3. CONFIDENTIAL INFORMATION");
-  lines.push(
-    '   The Receiving Party agrees to hold all Confidential Information in strict confidence, not to disclose it to any third party, and to use it solely for the Purpose described herein. "Confidential Information" shall include all information, whether oral, written, or in any other form, disclosed by the Disclosing Party to the Receiving Party.'
+  // Confidential Information
+  parts.push(`<h2>3. CONFIDENTIAL INFORMATION</h2>`);
+  parts.push(
+    `<p>The Receiving Party agrees to hold all Confidential Information in strict confidence, not to disclose it to any third party, and to use it solely for the Purpose described herein. "Confidential Information" shall include all information, whether oral, written, or in any other form, disclosed by the Disclosing Party to the Receiving Party.</p>`
   );
-  lines.push("");
 
-  lines.push("4. GOVERNING LAW & JURISDICTION");
-  const gs = getSelectLabel(data.governingState, stateOpts);
-  lines.push(`   This Agreement shall be governed by and construed in accordance with the laws of India. Any disputes arising out of this Agreement shall be subject to the exclusive jurisdiction of the courts in ${gs}.`);
-  lines.push("");
+  // Governing law
+  parts.push(`<h2>4. GOVERNING LAW &amp; JURISDICTION</h2>`);
+  parts.push(`<p>This Agreement shall be governed by and construed in accordance with the laws of India. Any disputes arising out of this Agreement shall be subject to the exclusive jurisdiction of the courts in ${gs}.</p>`);
+  parts.push(`<p class="ica-ref">Reference: Indian Contract Act, 1872 — Sections pertaining to lawful object, consideration, and agreements in restraint of trade (Section 27). The confidentiality obligations herein are reasonable and limited in scope and duration.</p>`);
 
   // Signatures
-  lines.push("IN WITNESS WHEREOF, the parties hereto have executed this Agreement on the date first above written.");
-  lines.push("");
-  lines.push("_________________________          _________________________");
-  lines.push("  (Disclosing Party)                   (Receiving Party)");
-  lines.push("");
+  parts.push(`<div class="signature-block">`);
+  parts.push(`<p>IN WITNESS WHEREOF, the parties hereto have executed this Agreement on the date first above written.</p>`);
+  parts.push(`<div class="signatures-row">`);
+  parts.push(`<div class="signature-line"><div class="line"></div><div class="label">Disclosing Party</div></div>`);
+  parts.push(`<div class="signature-line"><div class="line"></div><div class="label">Receiving Party</div></div>`);
+  parts.push(`</div>`);
+  parts.push(`</div>`);
 
-  return lines.join("\n");
+  return parts.join("\n");
 }
 
 /**
@@ -281,25 +291,18 @@ function buildGenericPreview(
   template: DocumentTemplate,
   data: Record<string, string>
 ): string {
-  const today = new Date().toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  const today = todayFormatted();
 
-  const lines: string[] = [];
-  lines.push(template.name.toUpperCase());
-  lines.push("");
-  lines.push(`Generated on: ${today}`);
-  lines.push("");
+  const parts: string[] = [];
+  parts.push(`<h1>${esc(template.name.toUpperCase())}</h1>`);
+  parts.push(`<p><em>Generated on: ${today}</em></p>`);
 
   for (const step of template.formSteps) {
     const filledFields = step.fields.filter((f) => data[f.id]);
     if (filledFields.length === 0) continue;
 
-    lines.push(`— ${step.title.toUpperCase()} —`);
-    lines.push("");
-
+    parts.push(`<h2>${esc(step.title.toUpperCase())}</h2>`);
+    parts.push(`<table class="terms">`);
     for (const field of filledFields) {
       let value = data[field.id];
       if (field.type === "select" && field.options) {
@@ -308,12 +311,13 @@ function buildGenericPreview(
         value = formatDate(value);
       } else if (field.type === "number" && field.label.toLowerCase().includes("₹")) {
         value = formatINR(value);
+      } else {
+        value = esc(value);
       }
-      lines.push(`  ${field.label}: ${value}`);
+      parts.push(`<tr><td>${esc(field.label)}:</td><td>${value}</td></tr>`);
     }
-
-    lines.push("");
+    parts.push(`</table>`);
   }
 
-  return lines.join("\n");
+  return parts.join("\n");
 }

@@ -89,3 +89,90 @@
     text-wrap: balance;
   }
 }
+
+/* Document preview content styling */
+.document-preview-content h1 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 1.5rem 0 0.75rem;
+  color: #1c1917;
+}
+
+.document-preview-content h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 1.25rem 0 0.5rem;
+  color: #292524;
+}
+
+.document-preview-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 0.9em;
+}
+
+.document-preview-content table.parties {
+  border: 1px solid #e7e5e4;
+}
+
+.document-preview-content table.parties th {
+  background-color: #f5f5f4;
+  font-weight: 700;
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e7e5e4;
+  font-size: 0.85em;
+}
+
+.document-preview-content table.parties td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #e7e5e4;
+  vertical-align: top;
+}
+
+.document-preview-content table.terms td {
+  padding: 4px 8px 4px 0;
+  vertical-align: top;
+}
+
+.document-preview-content table.terms td:first-child {
+  font-weight: 600;
+  white-space: nowrap;
+  padding-right: 16px;
+  color: #57534e;
+}
+
+.document-preview-content .signature-block {
+  margin-top: 2rem;
+}
+
+.document-preview-content .signatures-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 0.75rem;
+}
+
+.document-preview-content .signature-line {
+  flex: 1;
+  max-width: 45%;
+}
+
+.document-preview-content .signature-line .line {
+  border-top: 1px solid #1c1917;
+  margin-top: 36px;
+  margin-bottom: 6px;
+}
+
+.document-preview-content .signature-line .label {
+  font-size: 0.8em;
+  color: #78716c;
+  text-align: center;
+}
+
+.document-preview-content .ica-ref {
+  font-size: 0.8em;
+  color: #78716c;
+  font-style: italic;
+}

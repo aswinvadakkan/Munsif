@@ -27,6 +27,8 @@ export default function DocumentPreviewPage() {
 
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   useEffect(() => {
     const data = loadSaved(type);
@@ -38,12 +40,59 @@ export default function DocumentPreviewPage() {
     ? generateDocumentPreview(template, formData)
     : "";
 
-  const handleGenerateDocument = () => {
-    // For now this is a placeholder — it just shows the same content.
-    // In production, this would trigger AI formatting + PDF generation.
-    alert(
-      "Document generated successfully! In production, this would trigger PDF generation via Cashfree payment."
-    );
+  const handleDownloadPdf = async () => {
+    if (!template || !previewContent) return;
+
+    setIsDownloading(true);
+    setDownloadError(null);
+
+    try {
+      const response = await fetch("/api/generate-pdf", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          bodyContent: previewContent,
+          title: template.name,
+          documentType: template.name,
+          language: "en",
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(
+          errorData?.message || `PDF generation failed (${response.status})`
+        );
+      }
+
+      // Get the PDF blob and trigger download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      // Generate filename
+      const safeName = template.name
+        .replace(/[^a-zA-Z0-9\s-]/g, "")
+        .replace(/\s+/g, "-")
+        .toLowerCase();
+      const fileName = `${safeName}-Munsif-AI.pdf`;
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to download PDF";
+      setDownloadError(message);
+      console.error("PDF download error:", error);
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const handleEdit = () => {
@@ -179,9 +228,10 @@ export default function DocumentPreviewPage() {
 
           {/* Document body */}
           <div className="px-6 md:px-10 py-8">
-            <div className="font-serif text-stone-800 text-sm md:text-[15px] leading-[1.8] whitespace-pre-wrap">
-              {previewContent}
-            </div>
+            <div
+              className="font-serif text-stone-800 text-sm md:text-[15px] leading-[1.8] document-preview-content"
+              dangerouslySetInnerHTML={{ __html: previewContent }}
+            />
           </div>
 
           {/* AI Disclaimer Footer */}
@@ -196,6 +246,30 @@ export default function DocumentPreviewPage() {
         </div>
       )}
 
+      {/* Download Error */}
+      {downloadError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">
+          <div className="flex items-start gap-2">
+            <span className="text-red-500 text-sm flex-shrink-0 mt-0.5">❌</span>
+            <div>
+              <p className="text-red-800 text-sm font-medium">
+                PDF generation failed
+              </p>
+              <p className="text-red-600 text-xs mt-0.5">{downloadError}</p>
+            </div>
+            <button
+              onClick={() => setDownloadError(null)}
+              className="text-red-400 hover:text-red-600 ml-auto flex-shrink-0"
+              aria-label="Dismiss error"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Action buttons */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
         <button onClick={handleEdit} className="btn-secondary">
@@ -205,10 +279,51 @@ export default function DocumentPreviewPage() {
           Edit Details
         </button>
         <button
-          onClick={handleGenerateDocument}
-          className="btn-accent flex-1 sm:flex-none"
+          onClick={handleDownloadPdf}
+          disabled={isDownloading || !hasContent}
+          className="btn-accent flex-1 sm:flex-none disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          Pay ₹99 & Download PDF
+          {isDownloading ? (
+            <>
+              <svg
+                className="animate-spin w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                />
+              </svg>
+              Generating PDF...
+            </>
+          ) : (
+            <>
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+              Download PDF
+            </>
+          )}
         </button>
         <button
           onClick={handleBackToDocuments}
