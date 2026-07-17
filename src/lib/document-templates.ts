@@ -15,6 +15,7 @@ export interface DocumentTemplate {
   icon: string; // Emoji icon for quick visual
   category: "business" | "personal" | "employment" | "property";
   estimatedTime: string; // e.g. "5-7 min"
+  price: number; // in INR
   formSteps: FormStep[];
 }
 
@@ -90,6 +91,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     icon: "🏠",
     category: "property",
     estimatedTime: "5–7 min",
+    price: 499,
     formSteps: [
       {
         id: "parties",
@@ -276,6 +278,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     icon: "🔒",
     category: "business",
     estimatedTime: "4–6 min",
+    price: 299,
     formSteps: [
       {
         id: "parties",
@@ -409,6 +412,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     icon: "💼",
     category: "employment",
     estimatedTime: "6–8 min",
+    price: 599,
     formSteps: [
       {
         id: "parties",
@@ -493,6 +497,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     icon: "✍️",
     category: "business",
     estimatedTime: "5–7 min",
+    price: 399,
     formSteps: [
       {
         id: "parties",
@@ -580,6 +585,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     icon: "🤝",
     category: "business",
     estimatedTime: "6–8 min",
+    price: 599,
     formSteps: [
       {
         id: "parties",
@@ -665,6 +671,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     icon: "⚖️",
     category: "personal",
     estimatedTime: "5–7 min",
+    price: 249,
     formSteps: [
       {
         id: "parties",
@@ -749,6 +756,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     icon: "📝",
     category: "personal",
     estimatedTime: "4–6 min",
+    price: 199,
     formSteps: [
       {
         id: "declarant",
@@ -818,6 +826,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     icon: "📋",
     category: "business",
     estimatedTime: "6–8 min",
+    price: 349,
     formSteps: [
       {
         id: "business",

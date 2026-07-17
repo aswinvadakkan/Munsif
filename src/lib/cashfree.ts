@@ -1,131 +1,215 @@
 /**
  * Cashfree Payments SDK wrapper.
- * 
- * Handles order creation, payment verification, and webhook processing.
- * Uses Cashfree's standard checkout flow.
+ *
+ * Handles order creation, payment verification, and webhook processing
+ * using the official cashfree-pg SDK (v6).
  *
  * Reference: https://docs.cashfree.com/
  */
 
-export interface CreateOrderParams {
-  orderId: string;
-  orderAmount: number; // in INR
-  customerEmail: string;
-  customerPhone: string;
-  customerName: string;
-}
+import { Cashfree, CFEnvironment, type OrderEntity } from "cashfree-pg";
 
-export interface CashfreeOrderResult {
-  orderId: string;
-  paymentSessionId: string;
-  orderStatus: string;
-}
+// --- Configuration ---
 
 const CASHFREE_APP_ID = process.env.CASHFREE_APP_ID || "";
 const CASHFREE_SECRET_KEY = process.env.CASHFREE_SECRET_KEY || "";
-const CASHFREE_API_URL =
-  process.env.CASHFREE_ENV === "production"
-    ? "https://api.cashfree.com/pg"
-    : "https://sandbox.cashfree.com/pg";
+
+function getCashfreeEnv(): CFEnvironment {
+  return process.env.CASHFREE_ENV === "production"
+    ? CFEnvironment.PRODUCTION
+    : CFEnvironment.SANDBOX;
+}
 
 /**
- * Create a Cashfree order for a payment session.
+ * Get a configured Cashfree client instance.
+ * Created per-call to avoid stale state in long-running serverless functions.
  */
-export async function createCashfreeOrder(
+function getClient(): Cashfree {
+  return new Cashfree(getCashfreeEnv(), CASHFREE_APP_ID, CASHFREE_SECRET_KEY);
+}
+
+/**
+ * Returns the Cashfree checkout base URL for the current environment.
+ */
+function getCheckoutBaseUrl(): string {
+  return getCashfreeEnv() === CFEnvironment.PRODUCTION
+    ? "https://payments.cashfree.com"
+    : "https://payments-test.cashfree.com";
+}
+
+// --- Types ---
+
+export interface CreateOrderParams {
+  orderId: string; // unique order ID (e.g. "order_xxx_timestamp")
+  orderAmount: number; // in INR
+  customerEmail: string;
+  customerPhone?: string;
+  customerName?: string;
+  returnUrl: string; // URL to redirect after payment (must include protocol)
+}
+
+export interface CreateOrderResult {
+  orderId: string;
+  paymentSessionId: string;
+  orderStatus: string;
+  checkoutUrl: string;
+}
+
+export interface PaymentVerification {
+  status: "success" | "failed" | "pending";
+  paymentId?: string;
+  orderId: string;
+  orderAmount?: number;
+}
+
+// --- API Functions ---
+
+/**
+ * Create a Cashfree payment order and get a checkout URL.
+ */
+export async function createOrder(
   params: CreateOrderParams
-): Promise<CashfreeOrderResult> {
+): Promise<CreateOrderResult> {
   if (!CASHFREE_APP_ID || !CASHFREE_SECRET_KEY) {
     throw new Error(
       "Cashfree credentials not configured. Set CASHFREE_APP_ID and CASHFREE_SECRET_KEY."
     );
   }
 
-  const response = await fetch(`${CASHFREE_API_URL}/orders`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-version": "2023-08-01",
-      "x-client-id": CASHFREE_APP_ID,
-      "x-client-secret": CASHFREE_SECRET_KEY,
+  const cashfree = getClient();
+
+  const response = await cashfree.PGCreateOrder({
+    order_id: params.orderId,
+    order_amount: params.orderAmount,
+    order_currency: "INR",
+    customer_details: {
+      customer_id: params.customerEmail || params.orderId,
+      customer_email: params.customerEmail,
+      customer_phone: params.customerPhone || "9999999999",
+      customer_name: params.customerName || "Customer",
     },
-    body: JSON.stringify({
-      order_id: params.orderId,
-      order_amount: params.orderAmount,
-      order_currency: "INR",
-      customer_details: {
-        customer_id: params.customerEmail,
-        customer_email: params.customerEmail,
-        customer_phone: params.customerPhone,
-        customer_name: params.customerName,
-      },
-      order_meta: {
-        return_url: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/documents?payment=success`,
-        notify_url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/webhooks/cashfree`,
-      },
-    }),
+    order_meta: {
+      return_url: params.returnUrl,
+      notify_url: process.env.NEXT_PUBLIC_SITE_URL
+        ? `${process.env.NEXT_PUBLIC_SITE_URL}/api/webhooks/cashfree`
+        : undefined,
+      payment_methods: undefined, // Allow all payment methods
+    },
+    order_tags: {
+      source: "munsif-ai",
+    },
   });
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Cashfree order creation failed: ${error}`);
-  }
+  const order: OrderEntity = response.data;
+  const paymentSessionId = order.payment_session_id || "";
+  const cfOrderId = order.cf_order_id || "";
+  const orderStatus = order.order_status || "ACTIVE";
 
-  const data = await response.json();
+  // Build the checkout URL using cf_order_id and payment_session_id
+  const checkoutUrl = `${getCheckoutBaseUrl()}/checkout/post?cf_id=${cfOrderId}&session_id=${paymentSessionId}`;
+
   return {
-    orderId: data.order_id,
-    paymentSessionId: data.payment_session_id,
-    orderStatus: data.order_status,
+    orderId: params.orderId,
+    paymentSessionId,
+    orderStatus,
+    checkoutUrl,
   };
 }
 
 /**
- * Verify a Cashfree webhook signature.
+ * Verify payment status by fetching the order from Cashfree.
+ */
+export async function verifyPayment(
+  orderId: string
+): Promise<PaymentVerification> {
+  const cashfree = getClient();
+
+  try {
+    const response = await cashfree.PGFetchOrder(orderId, "verify-" + orderId);
+    const order: OrderEntity = response.data;
+
+    const orderStatus = order.order_status || "ACTIVE";
+
+    let status: "success" | "failed" | "pending";
+    switch (orderStatus) {
+      case "PAID":
+        status = "success";
+        break;
+      case "ACTIVE":
+        status = "pending";
+        break;
+      case "EXPIRED":
+      case "FAILED":
+      case "TERMINATED":
+        status = "failed";
+        break;
+      default:
+        status = "pending";
+    }
+
+    // Get payment ID from payments array if available
+    const payments = (order as any).payments;
+    const paymentId =
+      payments && payments.length > 0 ? payments[0].cf_payment_id : undefined;
+
+    return {
+      status,
+      paymentId,
+      orderId: order.order_id || orderId,
+      orderAmount: order.order_amount,
+    };
+  } catch (error: any) {
+    // If the order is not found, treat as pending
+    console.error("[Cashfree] Payment verification error:", error?.message);
+    return {
+      status: "pending",
+      orderId,
+    };
+  }
+}
+
+/**
+ * Verify a Cashfree webhook signature using the official SDK.
  */
 export function verifyCashfreeWebhook(
   payload: string,
   signature: string,
   timestamp: string
-): boolean {
-  if (!CASHFREE_SECRET_KEY) return false;
+): { verified: boolean; event?: any } {
+  if (!signature || !timestamp) {
+    return { verified: false };
+  }
 
-  // Cashfree uses HMAC-SHA256 for webhook verification
-  // Implementation: https://docs.cashfree.com/docs/webhooks#verifying-webhooks
-  // const crypto = require("crypto");
-  // const computed = crypto
-  //   .createHmac("sha256", CASHFREE_SECRET_KEY)
-  //   .update(timestamp + payload)
-  //   .digest("base64");
-  // return computed === signature;
-
-  // Placeholder — implement with actual crypto in production
-  return true;
+  try {
+    // Use the Cashfree SDK's built-in webhook verification
+    // We create a minimal client just for verification
+    const cashfree = new Cashfree(
+      getCashfreeEnv(),
+      CASHFREE_APP_ID,
+      CASHFREE_SECRET_KEY
+    );
+    const event = cashfree.PGVerifyWebhookSignature(
+      signature,
+      payload,
+      timestamp
+    );
+    return { verified: true, event: event.object };
+  } catch (error: any) {
+    console.error("[Cashfree] Webhook verification failed:", error?.message);
+    return { verified: false };
+  }
 }
 
 /**
- * Get Cashfree payment status by order ID.
+ * Parse payment status from URL search params returned by Cashfree.
+ * Cashfree appends order_id and order_status to the return_url.
  */
-export async function getPaymentStatus(
-  orderId: string
-): Promise<{ status: string; paymentId?: string }> {
-  const response = await fetch(
-    `${CASHFREE_API_URL}/orders/${orderId}/payments`,
-    {
-      headers: {
-        "x-api-version": "2023-08-01",
-        "x-client-id": CASHFREE_APP_ID,
-        "x-client-secret": CASHFREE_SECRET_KEY,
-      },
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch payment status");
-  }
-
-  const data = await response.json();
-  const payment = data?.[0];
+export function parseReturnParams(searchParams: URLSearchParams): {
+  orderId?: string;
+  orderStatus?: string;
+} {
   return {
-    status: payment?.payment_status || "unknown",
-    paymentId: payment?.cf_payment_id,
+    orderId: searchParams.get("order_id") || undefined,
+    orderStatus: searchParams.get("order_status") || undefined,
   };
 }
