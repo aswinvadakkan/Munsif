@@ -17,6 +17,7 @@
     "next": "^14.2.29",
     "next-intl": "^3.26.5",
     "playwright": "^1.61.1",
+    "razorpay": "^2.9.8",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "twilio": "^6.0.2",

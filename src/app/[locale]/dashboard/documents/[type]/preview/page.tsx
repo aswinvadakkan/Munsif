@@ -5,8 +5,10 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { getTemplateById } from "@/lib/document-templates";
 import { generateDocumentPreview } from "@/lib/document-previews";
+import { useRazorpay } from "@/lib/useRazorpay";
 
 type PaymentState = "idle" | "loading" | "pending" | "success" | "failed";
+type PaymentMethod = "razorpay" | "cashfree";
 
 interface PaymentSession {
   orderId: string;
@@ -14,6 +16,7 @@ interface PaymentSession {
   amount: number;
   state: PaymentState;
   createdAt: string;
+  method?: PaymentMethod;
 }
 
 function storageKey(type: string): string {
@@ -78,11 +81,29 @@ export default function DocumentPreviewPage() {
   const [paymentOrderId, setPaymentOrderId] = useState<string | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [hasPaid, setHasPaid] = useState(false);
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>("razorpay");
+
+  // Razorpay hook
+  const {
+    isLoaded: rzpLoaded,
+    error: rzpError,
+    openCheckout,
+  } = useRazorpay();
 
   useEffect(() => {
     const data = loadSaved(type);
     setFormData(data);
     setLoading(false);
+
+    // Restore previously selected payment method
+    try {
+      const savedMethod = localStorage.getItem(`munsif_payment_method_${type}`);
+      if (savedMethod === "razorpay" || savedMethod === "cashfree") {
+        setSelectedMethod(savedMethod);
+      }
+    } catch {
+      // ignore
+    }
   }, [type]);
 
   useEffect(() => {
@@ -91,6 +112,7 @@ export default function DocumentPreviewPage() {
     const urlOrderStatus = searchParams.get("order_status");
     const savedSession = loadPaymentSession(type);
 
+    // Handle Cashfree redirect return (existing flow)
     if (urlOrderStatus === "PAID" && urlOrderId) {
       setPaymentState("success");
       setPaymentOrderId(urlOrderId);
@@ -101,6 +123,7 @@ export default function DocumentPreviewPage() {
         amount: template.price,
         state: "success",
         createdAt: new Date().toISOString(),
+        method: "cashfree",
       });
       const cleanUrl = window.location.pathname;
       window.history.replaceState({}, "", cleanUrl);
@@ -109,7 +132,9 @@ export default function DocumentPreviewPage() {
 
     if (
       urlOrderStatus &&
-      ["FAILED", "EXPIRED", "USER_DROPPED", "CANCELLED", "TERMINATED"].includes(urlOrderStatus)
+      ["FAILED", "EXPIRED", "USER_DROPPED", "CANCELLED", "TERMINATED"].includes(
+        urlOrderStatus
+      )
     ) {
       setPaymentState("failed");
       setPaymentError(t("paymentFailedDesc"));
@@ -122,6 +147,9 @@ export default function DocumentPreviewPage() {
       setPaymentState("success");
       setPaymentOrderId(savedSession.orderId);
       setHasPaid(true);
+      if (savedSession.method) {
+        setSelectedMethod(savedSession.method);
+      }
       return;
     }
 
@@ -134,7 +162,8 @@ export default function DocumentPreviewPage() {
 
   const hasContent = previewContent.trim().length > 0;
 
-  const handlePayAndDownload = useCallback(async () => {
+  // --- Cashfree payment flow ---
+  const handleCashfreePay = useCallback(async () => {
     if (!template) return;
     setPaymentState("loading");
     setPaymentError(null);
@@ -158,7 +187,9 @@ export default function DocumentPreviewPage() {
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
         throw new Error(
-          errData?.message || errData?.error || `Payment setup failed (${response.status})`
+          errData?.message ||
+            errData?.error ||
+            `Payment setup failed (${response.status})`
         );
       }
 
@@ -169,6 +200,7 @@ export default function DocumentPreviewPage() {
         amount: data.amount,
         state: "pending",
         createdAt: new Date().toISOString(),
+        method: "cashfree",
       });
 
       setPaymentOrderId(data.orderId);
@@ -179,9 +211,137 @@ export default function DocumentPreviewPage() {
       setPaymentError(
         error?.message || "Failed to initialize payment. Please try again."
       );
-      console.error("[Payment] Error:", error);
+      console.error("[Payment] Cashfree error:", error);
     }
   }, [template, type]);
+
+  // --- Razorpay payment flow ---
+  const handleRazorpayPay = useCallback(async () => {
+    if (!template) return;
+    setPaymentState("loading");
+    setPaymentError(null);
+
+    try {
+      // 1. Create Razorpay order via backend
+      const response = await fetch("/api/payments/create-razorpay-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          documentType: type,
+          customerEmail: "user@example.com",
+          customerName: "User",
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(
+          errData?.message ||
+            errData?.error ||
+            `Razorpay order creation failed (${response.status})`
+        );
+      }
+
+      const data = await response.json();
+
+      // 2. Open Razorpay checkout modal
+      openCheckout(
+        {
+          key: data.keyId,
+          amount: data.amountPaise,
+          currency: data.currency || "INR",
+          name: "Munsif AI",
+          description: `Legal Document: ${template.name}`,
+          order_id: data.orderId,
+          prefill: {
+            name: "User",
+            email: "user@example.com",
+          },
+          notes: {
+            documentType: type,
+            receipt: data.receipt,
+          },
+          theme: {
+            color: "#248374",
+          },
+          modal: {
+            escape: true,
+            animation: true,
+            backdropclose: false,
+          },
+        },
+        {
+          onSuccess: (response) => {
+            // Payment successful via Razorpay modal
+            setPaymentState("success");
+            setPaymentOrderId(response.razorpay_order_id);
+            setHasPaid(true);
+
+            savePaymentSession(type, {
+              orderId: response.razorpay_order_id,
+              documentType: type,
+              amount: template.price,
+              state: "success",
+              createdAt: new Date().toISOString(),
+              method: "razorpay",
+            });
+
+            // Store the payment ID and signature for potential verification
+            try {
+              localStorage.setItem(
+                `munsif_razorpay_payment_${type}`,
+                JSON.stringify({
+                  paymentId: response.razorpay_payment_id,
+                  orderId: response.razorpay_order_id,
+                  signature: response.razorpay_signature,
+                  timestamp: Date.now(),
+                })
+              );
+            } catch {
+              // ignore
+            }
+          },
+          onDismiss: () => {
+            // User closed the modal without paying
+            if (paymentState === "loading") {
+              setPaymentState("idle");
+            }
+          },
+          onError: (error) => {
+            setPaymentState("failed");
+            setPaymentError(
+              error?.message ||
+                error?.description ||
+                "Razorpay payment failed. Please try again."
+            );
+            console.error("[Payment] Razorpay error:", error);
+          },
+        }
+      );
+    } catch (error: any) {
+      setPaymentState("failed");
+      setPaymentError(
+        error?.message || "Failed to initialize Razorpay payment. Please try again."
+      );
+      console.error("[Payment] Razorpay order error:", error);
+    }
+  }, [template, type, openCheckout, paymentState]);
+
+  // Unified pay handler based on selected method
+  const handlePayAndDownload = useCallback(() => {
+    // Save selected method preference
+    try {
+      localStorage.setItem(`munsif_payment_method_${type}`, selectedMethod);
+    } catch {
+      // ignore
+    }
+
+    if (selectedMethod === "razorpay") {
+      handleRazorpayPay();
+    } else {
+      handleCashfreePay();
+    }
+  }, [selectedMethod, handleRazorpayPay, handleCashfreePay, type]);
 
   const handleDownloadPdf = async () => {
     if (!template || !previewContent) return;
@@ -278,8 +438,18 @@ export default function DocumentPreviewPage() {
         onClick={handleEdit}
         className="text-sm text-stone-500 hover:text-teal-600 transition-colors mb-4 inline-flex items-center gap-1"
       >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        <svg
+          className="w-4 h-4"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M15 19l-7-7 7-7"
+          />
         </svg>
         ← {t("backToForm")}
       </button>
@@ -299,8 +469,12 @@ export default function DocumentPreviewPage() {
         <div className="flex items-start gap-3">
           <span className="text-lg flex-shrink-0 mt-0.5">⚠️</span>
           <div>
-            <p className="text-amber-800 text-sm font-medium mb-0.5">{t("aiTitle")}</p>
-            <p className="text-amber-700 text-xs leading-relaxed">{t("aiDescription")}</p>
+            <p className="text-amber-800 text-sm font-medium mb-0.5">
+              {t("aiTitle")}
+            </p>
+            <p className="text-amber-700 text-xs leading-relaxed">
+              {t("aiDescription")}
+            </p>
           </div>
         </div>
       </div>
@@ -308,7 +482,9 @@ export default function DocumentPreviewPage() {
       {!hasContent && (
         <div className="card p-10 text-center mb-6">
           <div className="text-4xl mb-3">📝</div>
-          <h3 className="font-semibold text-stone-900 mb-2">{t("noDataTitle")}</h3>
+          <h3 className="font-semibold text-stone-900 mb-2">
+            {t("noDataTitle")}
+          </h3>
           <p className="text-stone-500 text-sm mb-4">{t("noDataDesc")}</p>
           <button onClick={handleEdit} className="btn-primary text-sm">
             {t("goToForm")}
@@ -325,8 +501,18 @@ export default function DocumentPreviewPage() {
             </h2>
             <div className="flex items-center gap-3 mt-2 text-xs text-stone-500">
               <span className="flex items-center gap-1">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
                 </svg>
                 {new Date().toLocaleDateString("en-IN", {
                   day: "numeric",
@@ -360,13 +546,155 @@ export default function DocumentPreviewPage() {
       {hasContent && (
         <div className="bg-white rounded-2xl border border-stone-200 shadow-card overflow-hidden mb-6">
           <div className="px-6 md:px-10 py-5">
+            {/* Price display */}
+            <div className="mb-5">
+              <p className="text-sm text-stone-500 font-medium">
+                {t("documentPrice")}
+              </p>
+              <p className="text-3xl font-display font-bold text-stone-900">
+                ₹{template.price.toLocaleString("en-IN")}
+              </p>
+              <p className="text-xs text-stone-400 mt-1">
+                {t("oneTimePayment")}
+              </p>
+            </div>
+
+            {/* Payment method selector — only show if not yet paid */}
+            {paymentState !== "success" && !hasPaid && (
+              <div className="mb-5">
+                <p className="text-sm font-medium text-stone-700 mb-3">
+                  {t("selectPaymentMethod")}
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Razorpay card */}
+                  <button
+                    onClick={() => setSelectedMethod("razorpay")}
+                    className={`relative text-left p-4 rounded-xl border-2 transition-all ${
+                      selectedMethod === "razorpay"
+                        ? "border-teal-600 bg-teal-50 shadow-md"
+                        : "border-stone-200 bg-white hover:border-stone-300 hover:shadow-sm"
+                    }`}
+                  >
+                    {selectedMethod === "razorpay" && (
+                      <div className="absolute -top-2 -right-2 bg-saffron-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow">
+                        🇮🇳 {t("mostPopular")}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-[#3395FF]/10 flex items-center justify-center flex-shrink-0">
+                        <svg
+                          className="w-6 h-6 text-[#3395FF]"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                        >
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-stone-900 text-sm">
+                          Razorpay
+                        </p>
+                        <p className="text-xs text-stone-500 mt-0.5">
+                          {t("razorpayDesc")}
+                        </p>
+                      </div>
+                    </div>
+                    {selectedMethod === "razorpay" && (
+                      <div className="mt-3 flex items-center gap-1 text-teal-700 text-xs">
+                        <svg
+                          className="w-3.5 h-3.5"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        <span>{t("selected")}</span>
+                      </div>
+                    )}
+                  </button>
+
+                  {/* Cashfree card */}
+                  <button
+                    onClick={() => setSelectedMethod("cashfree")}
+                    className={`relative text-left p-4 rounded-xl border-2 transition-all ${
+                      selectedMethod === "cashfree"
+                        ? "border-teal-600 bg-teal-50 shadow-md"
+                        : "border-stone-200 bg-white hover:border-stone-300 hover:shadow-sm"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-[#FF6B35]/10 flex items-center justify-center flex-shrink-0">
+                        <svg
+                          className="w-6 h-6 text-[#FF6B35]"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                          />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-stone-900 text-sm">
+                          Cashfree
+                        </p>
+                        <p className="text-xs text-stone-500 mt-0.5">
+                          {t("cashfreeDesc")}
+                        </p>
+                      </div>
+                    </div>
+                    {selectedMethod === "cashfree" && (
+                      <div className="mt-3 flex items-center gap-1 text-teal-700 text-xs">
+                        <svg
+                          className="w-3.5 h-3.5"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        <span>{t("selected")}</span>
+                      </div>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Pay button */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <p className="text-sm text-stone-500 font-medium">{t("documentPrice")}</p>
-                <p className="text-3xl font-display font-bold text-stone-900">
-                  ₹{template.price.toLocaleString("en-IN")}
-                </p>
-                <p className="text-xs text-stone-400 mt-1">{t("oneTimePayment")}</p>
+                {paymentState === "success" || hasPaid ? (
+                  <p className="text-sm text-green-600 flex items-center gap-1.5">
+                    <svg
+                      className="w-4 h-4"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    {t("paymentSuccessful")}
+                  </p>
+                ) : paymentState === "pending" && selectedMethod === "razorpay" ? (
+                  <p className="text-sm text-amber-600">
+                    {t("completingPayment")}
+                  </p>
+                ) : null}
               </div>
 
               <div className="flex-shrink-0">
@@ -378,61 +706,190 @@ export default function DocumentPreviewPage() {
                   >
                     {isDownloading ? (
                       <>
-                        <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        <svg
+                          className="animate-spin w-4 h-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          />
                         </svg>
                         {t("generatingPDF")}
                       </>
                     ) : (
                       <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                          />
                         </svg>
                         {t("downloadPDF")}
                       </>
                     )}
                   </button>
                 ) : paymentState === "loading" ? (
-                  <button disabled className="btn-accent min-w-[180px] opacity-70 cursor-wait">
-                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  <button
+                    disabled
+                    className="btn-accent min-w-[180px] opacity-70 cursor-wait"
+                  >
+                    <svg
+                      className="animate-spin w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
                     </svg>
                     {t("settingUpPayment")}
                   </button>
                 ) : (
-                  <button onClick={handlePayAndDownload} className="btn-accent min-w-[180px]">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                    </svg>
-                    {t("payAndDownload")}
+                  <button
+                    onClick={handlePayAndDownload}
+                    disabled={
+                      selectedMethod === "razorpay" && !rzpLoaded
+                    }
+                    className="btn-accent min-w-[180px] disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={
+                      selectedMethod === "razorpay" && !rzpLoaded
+                        ? t("loadingRazorpay")
+                        : undefined
+                    }
+                  >
+                    {selectedMethod === "razorpay" ? (
+                      <>
+                        <svg
+                          className="w-4 h-4"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                        >
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                        </svg>
+                        {t("payWithRazorpay")}
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                          />
+                        </svg>
+                        {t("payWithCashfree")}
+                      </>
+                    )}
                   </button>
                 )}
               </div>
             </div>
 
+            {/* Trust badges — always show before payment */}
             {paymentState !== "success" && !hasPaid && (
-              <div className="flex items-center gap-4 mt-4 pt-4 border-t border-stone-100">
+              <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-stone-100">
                 <div className="flex items-center gap-1.5 text-xs text-stone-400">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  <svg
+                    className="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                    />
                   </svg>
                   {t("securePayment")}
                 </div>
-                <div className="flex items-center gap-1.5 text-xs text-stone-400">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                  {t("poweredByCashfree")}
-                </div>
-                <div className="flex items-center gap-1.5 text-xs text-stone-400">
-                  <span>UPI</span>
-                  <span className="text-stone-300">•</span>
-                  <span>Cards</span>
-                  <span className="text-stone-300">•</span>
-                  <span>Netbanking</span>
-                </div>
+                {selectedMethod === "razorpay" ? (
+                  <>
+                    <div className="flex items-center gap-1.5 text-xs text-stone-400">
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                        />
+                      </svg>
+                      {t("poweredByRazorpay")}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-stone-400">
+                      <span>{t("pciCompliant")}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-stone-400">
+                      <span>{t("sslEncrypted")}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-1.5 text-xs text-stone-400">
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                        />
+                      </svg>
+                      {t("poweredByCashfree")}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-stone-400">
+                      <span>UPI</span>
+                      <span className="text-stone-300">•</span>
+                      <span>Cards</span>
+                      <span className="text-stone-300">•</span>
+                      <span>Netbanking</span>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -445,7 +902,9 @@ export default function DocumentPreviewPage() {
           <div className="flex items-start gap-2">
             <span className="text-red-500 text-sm flex-shrink-0 mt-0.5">❌</span>
             <div className="flex-1">
-              <p className="text-red-800 text-sm font-medium">{t("paymentFailed")}</p>
+              <p className="text-red-800 text-sm font-medium">
+                {t("paymentFailed")}
+              </p>
               <p className="text-red-600 text-xs mt-0.5">{paymentError}</p>
             </div>
             <button
@@ -459,9 +918,40 @@ export default function DocumentPreviewPage() {
               className="text-red-400 hover:text-red-600 ml-2 flex-shrink-0"
               aria-label="Dismiss error"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Razorpay SDK loading error */}
+      {rzpError && selectedMethod === "razorpay" && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">
+          <div className="flex items-start gap-2">
+            <span className="text-amber-500 text-sm flex-shrink-0 mt-0.5">⚠️</span>
+            <div className="flex-1">
+              <p className="text-amber-800 text-sm font-medium">
+                {t("razorpayNotLoaded")}
+              </p>
+              <p className="text-amber-600 text-xs mt-0.5">{rzpError}</p>
+            </div>
+            <button
+              onClick={() => setSelectedMethod("cashfree")}
+              className="text-amber-600 hover:text-amber-700 text-sm font-medium flex-shrink-0 underline"
+            >
+              {t("switchToCashfree")}
             </button>
           </div>
         </div>
@@ -472,7 +962,9 @@ export default function DocumentPreviewPage() {
           <div className="flex items-start gap-2">
             <span className="text-red-500 text-sm flex-shrink-0 mt-0.5">❌</span>
             <div>
-              <p className="text-red-800 text-sm font-medium">{t("pdfFailed")}</p>
+              <p className="text-red-800 text-sm font-medium">
+                {t("pdfFailed")}
+              </p>
               <p className="text-red-600 text-xs mt-0.5">{downloadError}</p>
             </div>
             <button
@@ -480,8 +972,18 @@ export default function DocumentPreviewPage() {
               className="text-red-400 hover:text-red-600 ml-auto flex-shrink-0"
               aria-label="Dismiss error"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
@@ -491,12 +993,25 @@ export default function DocumentPreviewPage() {
       {/* Bottom actions */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
         <button onClick={handleEdit} className="btn-secondary">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+            />
           </svg>
           {t("editDetails")}
         </button>
-        <button onClick={handleBackToDocuments} className="btn-secondary sm:ml-auto">
+        <button
+          onClick={handleBackToDocuments}
+          className="btn-secondary sm:ml-auto"
+        >
           {t("newDocument")}
         </button>
       </div>
