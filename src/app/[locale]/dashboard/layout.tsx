@@ -1,30 +1,30 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { Link, usePathname } from "@/i18n/routing";
 import { DisclaimerBanner } from "@/components/ui/DisclaimerBanner";
-
-const navItems = [
-  { href: "/dashboard", label: "Overview", icon: "📊" },
-  { href: "/dashboard/documents", label: "Documents", icon: "📄" },
-];
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const t = useTranslations("dashboard");
   const pathname = usePathname();
+
+  const navItems = [
+    { href: "/dashboard" as const, label: t("overview"), icon: "📊" },
+    { href: "/dashboard/documents" as const, label: t("documents"), icon: "📄" },
+  ];
 
   return (
     <div className="min-h-screen flex flex-col bg-stone-50">
       <DisclaimerBanner />
 
-      {/* Top Nav Bar */}
       <nav className="bg-white border-b border-stone-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 md:h-16">
-            {/* Logo + Nav */}
             <div className="flex items-center gap-6">
               <Link href="/" className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center">
@@ -37,7 +37,7 @@ export default function DashboardLayout({
 
               <div className="hidden md:flex items-center gap-1">
                 {navItems.map((item) => {
-                  const isActive = pathname === item.href;
+                  const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
                   return (
                     <Link
                       key={item.href}
@@ -56,13 +56,13 @@ export default function DashboardLayout({
               </div>
             </div>
 
-            {/* User area */}
             <div className="flex items-center gap-3">
+              <LanguageSwitcher />
               <Link
                 href="/dashboard/documents"
                 className="btn-primary text-sm !px-4 !py-2 !rounded-lg"
               >
-                + New Document
+                {t("newDocument")}
               </Link>
             </div>
           </div>
@@ -90,7 +90,6 @@ export default function DashboardLayout({
         </div>
       </div>
 
-      {/* Main content */}
       <main className="flex-1 pb-16 md:pb-0">{children}</main>
     </div>
   );

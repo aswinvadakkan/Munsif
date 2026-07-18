@@ -1,8 +1,10 @@
-import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/routing";
 import { DOCUMENT_TEMPLATES } from "@/lib/document-templates";
 
 export default function DashboardPage() {
-  // Placeholder data — will be replaced with Convex queries
+  const t = useTranslations("dashboard");
+
   const recentDocuments: {
     id: string;
     type: string;
@@ -13,22 +15,18 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Welcome */}
       <div className="mb-8">
         <h1 className="text-2xl md:text-3xl font-display font-bold text-stone-900">
-          Your Dashboard
+          {t("title")}
         </h1>
-        <p className="text-stone-500 mt-1">
-          Manage your legal documents and account
-        </p>
+        <p className="text-stone-500 mt-1">{t("subtitle")}</p>
       </div>
 
-      {/* Quick Stats */}
       <div className="grid sm:grid-cols-3 gap-4 mb-8">
         {[
-          { label: "Documents Created", value: "0", icon: "📄" },
-          { label: "Documents Ready", value: "0", icon: "✅" },
-          { label: "Available Templates", value: String(DOCUMENT_TEMPLATES.length), icon: "📋" },
+          { label: t("documentsCreated"), value: "0", icon: "📄" },
+          { label: t("documentsReady"), value: "0", icon: "✅" },
+          { label: t("availableTemplates"), value: String(DOCUMENT_TEMPLATES.length), icon: "📋" },
         ].map((stat) => (
           <div key={stat.label} className="card p-5">
             <div className="flex items-center gap-3">
@@ -42,27 +40,24 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Recent Documents */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-stone-900">Recent Documents</h2>
+          <h2 className="text-lg font-semibold text-stone-900">{t("recentDocuments")}</h2>
           <Link
             href="/dashboard/documents"
             className="text-sm font-medium text-teal-600 hover:text-teal-700"
           >
-            View All →
+            {t("viewAll")}
           </Link>
         </div>
 
         {recentDocuments.length === 0 ? (
           <div className="card p-8 text-center">
             <div className="text-4xl mb-3">📄</div>
-            <h3 className="font-semibold text-stone-900 mb-2">No documents yet</h3>
-            <p className="text-stone-500 text-sm mb-4">
-              Create your first legal document in minutes
-            </p>
+            <h3 className="font-semibold text-stone-900 mb-2">{t("noDocuments")}</h3>
+            <p className="text-stone-500 text-sm mb-4">{t("noDocumentsDesc")}</p>
             <Link href="/dashboard/documents" className="btn-primary text-sm !px-6 !py-2.5">
-              Browse Templates
+              {t("browseTemplates")}
             </Link>
           </div>
         ) : (

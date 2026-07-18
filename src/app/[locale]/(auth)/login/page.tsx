@@ -1,14 +1,17 @@
 "use client";
 
 import { useState, FormEvent } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "@/i18n/routing";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/routing";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { DisclaimerBanner } from "@/components/ui/DisclaimerBanner";
 
 export default function LoginPage() {
   const { signIn } = useAuthActions();
   const router = useRouter();
+  const tAuth = useTranslations("auth");
+  const tCommon = useTranslations("common");
 
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -20,18 +23,15 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-
     try {
       const result = await signIn("resend", { email });
       if (!result.signingIn) {
-        // OTP was sent — show the code input
         setStep("otp");
       } else {
-        // Immediate sign-in (e.g., magic link clicked)
         router.push("/dashboard");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send code. Please try again.");
+      setError(err instanceof Error ? err.message : tAuth("failedSendCode"));
     } finally {
       setLoading(false);
     }
@@ -41,12 +41,11 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-
     try {
       await signIn("resend", { email, code });
       router.push("/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Invalid code. Please try again.");
+      setError(err instanceof Error ? err.message : tAuth("invalidCode"));
     } finally {
       setLoading(false);
     }
@@ -55,11 +54,10 @@ export default function LoginPage() {
   const handleGoogleSignIn = async () => {
     setError(null);
     setLoading(true);
-
     try {
       await signIn("google", { redirectTo: "/dashboard" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Google sign-in failed. Please try again.");
+      setError(err instanceof Error ? err.message : tAuth("googleFailed"));
       setLoading(false);
     }
   };
@@ -70,41 +68,36 @@ export default function LoginPage() {
 
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">
-          {/* Logo */}
           <div className="text-center mb-8">
             <Link href="/" className="inline-flex items-center gap-2.5 mb-6">
               <div className="w-10 h-10 bg-teal-600 rounded-xl flex items-center justify-center">
                 <span className="text-white font-display font-bold text-xl">M</span>
               </div>
               <span className="font-display font-bold text-xl text-stone-900">
-                Munsif AI
+                {tCommon("appName")}
               </span>
             </Link>
             <h1 className="text-2xl font-display font-bold text-stone-900">
-              Welcome Back
+              {tAuth("loginTitle")}
             </h1>
-            <p className="text-stone-500 mt-2">
-              Sign in to access your documents
-            </p>
+            <p className="text-stone-500 mt-2">{tAuth("loginSubtitle")}</p>
           </div>
 
-          {/* Login Form */}
           <div className="card p-6 md:p-8">
             {step === "email" ? (
               <form onSubmit={handleSendCode} className="space-y-5">
-                {/* Email */}
                 <div>
                   <label
                     htmlFor="email"
                     className="block text-sm font-medium text-stone-700 mb-1.5"
                   >
-                    Email Address
+                    {tAuth("emailLabel")}
                   </label>
                   <input
                     id="email"
                     type="email"
                     className="input-field"
-                    placeholder="you@example.com"
+                    placeholder={tAuth("emailPlaceholder")}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -120,36 +113,34 @@ export default function LoginPage() {
                   {loading ? (
                     <span className="flex items-center gap-2">
                       <Spinner />
-                      Sending Code...
+                      {tAuth("sendingCode")}
                     </span>
                   ) : (
-                    "Send Code"
+                    tAuth("sendOTP")
                   )}
                 </button>
               </form>
             ) : (
               <form onSubmit={handleVerifyOtp} className="space-y-5">
-                {/* Email (read-only) */}
                 <div>
                   <label className="block text-sm font-medium text-stone-700 mb-1.5">
-                    Email Address
+                    {tAuth("emailLabel")}
                   </label>
                   <p className="text-stone-900 text-sm font-medium">{email}</p>
                 </div>
 
-                {/* OTP */}
                 <div>
                   <label
                     htmlFor="otp"
                     className="block text-sm font-medium text-stone-700 mb-1.5"
                   >
-                    Verification Code
+                    {tAuth("otpLabel")}
                   </label>
                   <input
                     id="otp"
                     type="text"
                     className="input-field"
-                    placeholder="6-digit code"
+                    placeholder={tAuth("otpPlaceholder")}
                     maxLength={6}
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
@@ -166,10 +157,10 @@ export default function LoginPage() {
                   {loading ? (
                     <span className="flex items-center gap-2">
                       <Spinner />
-                      Verifying...
+                      {tAuth("verifying")}
                     </span>
                   ) : (
-                    "Sign In"
+                    tCommon("signIn")
                   )}
                 </button>
 
@@ -183,31 +174,28 @@ export default function LoginPage() {
                   }}
                   disabled={loading}
                 >
-                  ← Back
+                  ← {tCommon("back")}
                 </button>
               </form>
             )}
 
-            {/* Error message */}
             {error && (
               <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
                 {error}
               </div>
             )}
 
-            {/* Divider */}
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-stone-200" />
               </div>
               <div className="relative flex justify-center text-xs">
                 <span className="bg-white px-3 text-stone-400">
-                  or continue with
+                  {tAuth("orContinueWith")}
                 </span>
               </div>
             </div>
 
-            {/* Google Auth */}
             <button
               className="btn-secondary w-full !bg-white border border-stone-300 hover:!bg-stone-50"
               onClick={handleGoogleSignIn}
@@ -231,14 +219,17 @@ export default function LoginPage() {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                 />
               </svg>
-              Continue with Google
+              {tAuth("continueWithGoogle")}
             </button>
           </div>
 
           <p className="text-center mt-6 text-sm text-stone-500">
-            Don&apos;t have an account?{" "}
-            <Link href="/signup" className="text-teal-600 font-medium hover:text-teal-700">
-              Create Account
+            {tAuth("noAccount")}{" "}
+            <Link
+              href="/signup"
+              className="text-teal-600 font-medium hover:text-teal-700"
+            >
+              {tAuth("createAccount")}
             </Link>
           </p>
         </div>

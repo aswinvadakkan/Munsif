@@ -1,6 +1,7 @@
 "use client";
 
-import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/routing";
 import type { DocumentTemplate } from "@/lib/document-templates";
 
 interface DocumentCardProps {
@@ -16,12 +17,12 @@ const categoryColors: Record<string, string> = {
 };
 
 export function DocumentCard({ template, href }: DocumentCardProps) {
+  const t = useTranslations("documents");
   const categoryColor =
     categoryColors[template.category] || "bg-stone-50 text-stone-700";
 
   const content = (
     <div className="card p-5 md:p-6 cursor-pointer group h-full flex flex-col">
-      {/* Icon + Badge row */}
       <div className="flex items-start justify-between mb-3">
         <div className="text-3xl md:text-4xl flex-shrink-0 leading-none">
           {template.icon}
@@ -33,17 +34,14 @@ export function DocumentCard({ template, href }: DocumentCardProps) {
         </span>
       </div>
 
-      {/* Title */}
       <h3 className="font-display font-semibold text-stone-900 text-base md:text-lg mb-1.5">
         {template.name}
       </h3>
 
-      {/* Description */}
       <p className="text-stone-500 text-sm leading-relaxed flex-1 line-clamp-2 mb-4">
         {template.description}
       </p>
 
-      {/* Footer */}
       <div className="flex items-center justify-between mt-auto pt-3 border-t border-stone-100">
         <span className="text-xs text-stone-400 flex items-center gap-1">
           <svg
@@ -62,7 +60,7 @@ export function DocumentCard({ template, href }: DocumentCardProps) {
           {template.estimatedTime}
         </span>
         <span className="text-teal-600 text-sm font-medium flex items-center gap-0.5 group-hover:gap-1.5 transition-all">
-          Create
+          {t("create")}
           <svg
             className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform"
             fill="none"
