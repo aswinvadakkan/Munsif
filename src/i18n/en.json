@@ -197,5 +197,122 @@
   "languageSwitcher": {
     "en": "EN",
     "hi": "HI"
+  },
+  "admin": {
+    "checkingAccess": "Checking access...",
+    "backToApp": "Back to App",
+    "title": "Admin Dashboard",
+    "subtitle": "Manage users, documents, payments, and templates",
+    "overview": "Overview",
+    "users": "Users",
+    "documents": "Documents",
+    "payments": "Payments",
+    "templates": "Templates",
+    "stats": {
+      "totalUsers": "Total Users",
+      "totalDocuments": "Documents Generated",
+      "totalRevenue": "Total Revenue",
+      "activeTemplates": "Active Templates",
+      "convexPending": "N/A until Convex connected",
+      "cashfreePending": "N/A until Cashfree live",
+      "placeholderUntilLive": "Placeholder until live"
+    },
+    "quickLinks": {
+      "title": "Quick Links",
+      "users": "Users",
+      "usersDesc": "View and manage registered users",
+      "documents": "Documents",
+      "documentsDesc": "Track all generated documents",
+      "payments": "Payments",
+      "paymentsDesc": "Monitor revenue and transactions",
+      "templates": "Templates",
+      "templatesDesc": "Review and audit document templates"
+    },
+    "placeholder": {
+      "usersTitle": "Connect Convex to see real user data",
+      "usersDesc": "Sample data shown below for demonstration. Real data will appear once Convex backend is connected.",
+      "documentsTitle": "Connect Convex to see real documents",
+      "documentsDesc": "Sample data shown below for demonstration. Real documents will appear once Convex is connected."
+    },
+    "users": {
+      "title": "Users",
+      "subtitle": "Manage registered users and their roles",
+      "searchPlaceholder": "Search by name or email...",
+      "noUsers": "No users found",
+      "noResults": "No users match your search",
+      "columns": {
+        "name": "Name",
+        "email": "Email",
+        "phone": "Phone",
+        "role": "Role",
+        "documents": "Documents",
+        "joined": "Joined"
+      }
+    },
+    "documents": {
+      "title": "Documents",
+      "subtitle": "Track all generated documents and their status",
+      "filterAllTypes": "All Types",
+      "filterAllStatus": "All Status",
+      "statusDraft": "Draft",
+      "statusGenerated": "Generated",
+      "statusPaid": "Paid",
+      "noResults": "No documents match your filters",
+      "columns": {
+        "id": "Doc ID",
+        "user": "User",
+        "type": "Type",
+        "status": "Status",
+        "date": "Date",
+        "price": "Price"
+      }
+    },
+    "payments": {
+      "title": "Payments",
+      "subtitle": "Monitor revenue, transactions, and payment status",
+      "cashfreePending": "Cashfree connection pending",
+      "cashfreePendingDesc": "Payment processing will be live once Cashfree integration is completed.",
+      "totalRevenue": "Total Revenue",
+      "successful": "Successful",
+      "failed": "Failed",
+      "pending": "Pending",
+      "statusSuccess": "Success",
+      "statusPending": "Pending",
+      "statusFailed": "Failed",
+      "columns": {
+        "orderId": "Order ID",
+        "user": "User",
+        "docType": "Doc Type",
+        "amount": "Amount",
+        "status": "Status",
+        "date": "Date"
+      }
+    },
+    "templates": {
+      "title": "Templates",
+      "subtitle": "Review and audit document templates — view structure, steps, and fields",
+      "deployedOn": "Templates deployed on:",
+      "sourceHint": "Source",
+      "editButton": "Edit",
+      "editTemplate": "Edit Template",
+      "columns": {
+        "name": "Template Name",
+        "category": "Category",
+        "steps": "Steps",
+        "fields": "Fields",
+        "price": "Price",
+        "actions": "Actions"
+      },
+      "editPanel": {
+        "name": "Template Name",
+        "description": "Description",
+        "price": "Price (₹)",
+        "stepsAndFields": "Steps & Fields (Read-Only)",
+        "fieldsCount": "fields",
+        "codeSourceNote": "Template schemas are defined in code and cannot be structurally edited from the admin panel. Use the code editor to add or remove steps and fields.",
+        "deployedOn": "This template was deployed on",
+        "editInCode": "Edit template schema in"
+      }
+    }
   }
 }
