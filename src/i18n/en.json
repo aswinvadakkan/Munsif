@@ -218,7 +218,11 @@
   },
   "languageSwitcher": {
     "en": "EN",
-    "hi": "HI"
+    "hi": "HI",
+    "ta": "TA",
+    "te": "TE",
+    "mr": "MR",
+    "bn": "BN"
   },
   "admin": {
     "checkingAccess": "Checking access...",
