@@ -392,7 +392,19 @@
     "linkCopied": "ലിങ്ക് പകർത്തി!",
     "expiresIn": "കാലഹരണപ്പെടുന്നത്: {time}",
     "stampDutyTitle": "സ്റ്റാമ്പ് ഡ്യൂട്ടി കാൽക്കുലേറ്റർ",
-    "stampDutySubtitle": "നിങ്ങളുടെ സംസ്ഥാനത്തിനായുള്ള ഏകദേശ സ്റ്റാമ്പ് ഡ്യൂട്ടി പരിശോധിക്കുക"
+    "stampDutySubtitle": "നിങ്ങളുടെ സംസ്ഥാനത്തിനായുള്ള ഏകദേശ സ്റ്റാമ്പ് ഡ്യൂട്ടി പരിശോധിക്കുക",
+    "signatureTitle": "നിങ്ങളുടെ രേഖയിൽ ഒപ്പിടുക",
+    "signatureSubtitle": "ഈ രേഖ നിയമപരമായി പ്രാബല്യത്തിൽ വരുത്താൻ താഴെ ഒപ്പ് വരയ്‌ക്കുക",
+    "signaturePadLabel": "നിങ്ങളുടെ ഒപ്പ് വരയ്‌ക്കുക",
+    "signatureClearButton": "മായ്‌ക്കുക",
+    "signatureUndoButton": "പഴയപടി",
+    "signaturePrintedName": "അച്ചടിച്ച പേര്",
+    "signaturePrintedNamePlaceholder": "നിങ്ങളുടെ മുഴുവൻ നിയമപരമായ പേര് ടൈപ്പ് ചെയ്യുക",
+    "signatureDate": "തീയതി",
+    "signatureConfirmationCheckbox": "ഇത് എന്റെ നിയമപരമായ ഒപ്പാണെന്ന് ഞാൻ സ്ഥിരീകരിക്കുന്നു, ഈ രേഖയിലെ നിബന്ധനകൾ ഞാൻ അംഗീകരിക്കുന്നു",
+    "signAndDownload": "ഒപ്പിട്ട് ഡൗൺലോഡ് ചെയ്യുക",
+    "signingDocument": "ഒപ്പിടുന്നു...",
+    "signedCopyBadge": "ഒപ്പിട്ട പകർപ്പ്"
   },
 
   "payment": {

@@ -216,7 +216,19 @@
     "regenerate": "మళ్లీ రూపొందించు",
     "aiGenerationFallback": "AI రూపకల్పన అందుబాటులో లేదు — టెంప్లేట్-ఆధారిత ప్రివ్యూ చూపబడుతోంది",
     "stampDutyTitle": "స్టాంప్ డ్యూటీ కాలిక్యులేటర్",
-    "stampDutySubtitle": "మీ రాష్ట్రానికి సుమారు స్టాంప్ డ్యూటీని తనిఖీ చేయండి"
+    "stampDutySubtitle": "మీ రాష్ట్రానికి సుమారు స్టాంప్ డ్యూటీని తనిఖీ చేయండి",
+    "signatureTitle": "మీ పత్రంపై సంతకం చేయండి",
+    "signatureSubtitle": "ఈ పత్రాన్ని చట్టబద్ధంగా అమలు చేయడానికి క్రింద మీ సంతకాన్ని గీయండి",
+    "signaturePadLabel": "మీ సంతకాన్ని గీయండి",
+    "signatureClearButton": "తొలగించు",
+    "signatureUndoButton": "చర్య రద్దు",
+    "signaturePrintedName": "ముద్రిత పేరు",
+    "signaturePrintedNamePlaceholder": "మీ పూర్తి చట్టపరమైన పేరును టైప్ చేయండి",
+    "signatureDate": "తేదీ",
+    "signatureConfirmationCheckbox": "ఇది నా చట్టపరమైన సంతకం అని నేను ధృవీకరిస్తున్నాను మరియు ఈ పత్రం యొక్క నిబంధనలకు నేను అంగీకరిస్తున్నాను",
+    "signAndDownload": "సంతకం చేసి డౌన్‌లోడ్ చేయండి",
+    "signingDocument": "సంతకం చేయబడుతోంది...",
+    "signedCopyBadge": "సంతకం చేసిన కాపీ"
   },
   "languageSwitcher": {
     "en": "EN",

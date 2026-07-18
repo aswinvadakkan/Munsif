@@ -8,6 +8,14 @@ const generatePdfRequestSchema = z.object({
   title: z.string().min(1, "Document title is required"),
   documentType: z.string().min(1, "Document type is required"),
   language: z.enum(["en", "hi"]).optional().default("en"),
+  signature: z
+    .object({
+      signatureImage: z.string().optional(),
+      signerName: z.string().min(1, "Signer name is required"),
+      signDate: z.string().min(1, "Sign date is required"),
+      isSigned: z.boolean(),
+    })
+    .optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -26,7 +34,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { bodyContent, title, documentType, language } = parsed.data;
+    const { bodyContent, title, documentType, language, signature } = parsed.data;
 
     // Generate the PDF
     const result = await generatePdf({
@@ -34,6 +42,7 @@ export async function POST(request: NextRequest) {
       title,
       documentType,
       language,
+      signature,
     });
 
     // Return the PDF as a download

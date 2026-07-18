@@ -216,7 +216,19 @@
     "regenerate": "पुनः उत्पन्न करें",
     "aiGenerationFallback": "AI जनरेशन उपलब्ध नहीं — टेम्पलेट-आधारित पूर्वावलोकन दिखाया जा रहा है",
     "stampDutyTitle": "स्टाम्प ड्यूटी कैलकुलेटर",
-    "stampDutySubtitle": "अपने राज्य के लिए अनुमानित स्टाम्प ड्यूटी देखें"
+    "stampDutySubtitle": "अपने राज्य के लिए अनुमानित स्टाम्प ड्यूटी देखें",
+    "signatureTitle": "दस्तावेज़ पर हस्ताक्षर करें",
+    "signatureSubtitle": "दस्तावेज़ को कानूनी रूप से निष्पादन योग्य बनाने के लिए नीचे अपना हस्ताक्षर बनाएं",
+    "signaturePadLabel": "अपना हस्ताक्षर बनाएं",
+    "signatureClearButton": "साफ़ करें",
+    "signatureUndoButton": "पूर्ववत करें",
+    "signaturePrintedName": "मुद्रित नाम",
+    "signaturePrintedNamePlaceholder": "अपना पूरा कानूनी नाम लिखें",
+    "signatureDate": "तारीख",
+    "signatureConfirmationCheckbox": "मैं पुष्टि करता हूं कि यह मेरा कानूनी हस्ताक्षर है और मैं इस दस्तावेज़ की शर्तों से सहमत हूं",
+    "signAndDownload": "हस्ताक्षर करें और डाउनलोड करें",
+    "signingDocument": "हस्ताक्षर किया जा रहा है...",
+    "signedCopyBadge": "हस्ताक्षरित प्रति"
   },
   "languageSwitcher": {
     "en": "EN",

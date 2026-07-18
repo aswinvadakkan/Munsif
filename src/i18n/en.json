@@ -216,7 +216,19 @@
     "regenerate": "Regenerate",
     "aiGenerationFallback": "AI generation unavailable — showing template-based preview",
     "stampDutyTitle": "Stamp Duty Calculator",
-    "stampDutySubtitle": "Check approximate stamp duty for your state"
+    "stampDutySubtitle": "Check approximate stamp duty for your state",
+    "signatureTitle": "Sign Your Document",
+    "signatureSubtitle": "Draw your signature below to make this document legally executable",
+    "signaturePadLabel": "Draw your signature",
+    "signatureClearButton": "Clear",
+    "signatureUndoButton": "Undo",
+    "signaturePrintedName": "Printed Name",
+    "signaturePrintedNamePlaceholder": "Type your full legal name",
+    "signatureDate": "Date",
+    "signatureConfirmationCheckbox": "I confirm that this is my legal signature and I agree to the terms of this document",
+    "signAndDownload": "Sign & Download",
+    "signingDocument": "Signing document...",
+    "signedCopyBadge": "Signed copy"
   },
   "languageSwitcher": {
     "en": "EN",

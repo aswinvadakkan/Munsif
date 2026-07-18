@@ -11,6 +11,17 @@
  * - Page numbers with generation metadata
  */
 
+export interface SignatureOptions {
+  /** PNG data URL of the signature image */
+  signatureImage?: string;
+  /** Printed name of signer */
+  signerName: string;
+  /** Display date of signing */
+  signDate: string;
+  /** Whether this is a signed copy */
+  isSigned: boolean;
+}
+
 export interface PdfTemplateOptions {
   title: string;
   documentType: string;
@@ -18,6 +29,8 @@ export interface PdfTemplateOptions {
   generationTimestamp: string;
   documentId?: string;
   language?: "en" | "hi";
+  /** E-signature data — when provided, a signature section is added before the disclaimer */
+  signature?: SignatureOptions;
 }
 
 /**
@@ -33,6 +46,7 @@ export function buildPdfHtml(options: PdfTemplateOptions): string {
     generationTimestamp,
     documentId = generateDocId(),
     language = "en",
+    signature,
   } = options;
 
   const direction = language === "hi" ? "rtl" : "ltr";
@@ -266,6 +280,100 @@ export function buildPdfHtml(options: PdfTemplateOptions): string {
       margin-top: 16px;
     }
 
+    /* === E-Signature Section === */
+    .esig-section {
+      margin-top: 40px;
+      padding: 18px 20px;
+      border: 1.5px solid #d6d3d1;
+      border-radius: 4px;
+      page-break-inside: avoid;
+    }
+
+    .esig-section .esig-title {
+      font-size: 10pt;
+      font-weight: 700;
+      color: #57534e;
+      margin-bottom: 18px;
+      letter-spacing: 0.02em;
+    }
+
+    .esig-row {
+      display: flex;
+      gap: 32px;
+      align-items: flex-end;
+    }
+
+    .esig-draw-area {
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .esig-draw-area img {
+      max-width: 280px;
+      max-height: 80px;
+      object-fit: contain;
+    }
+
+    .esig-draw-area .esig-line {
+      border-top: 1px solid #1c1917;
+      margin-top: 8px;
+      padding-top: 4px;
+      font-size: 8.5pt;
+      color: #78716c;
+      text-align: center;
+    }
+
+    .esig-details {
+      flex: 1;
+      font-size: 9pt;
+    }
+
+    .esig-details .esig-detail-row {
+      margin-bottom: 10px;
+    }
+
+    .esig-details .esig-detail-label {
+      font-size: 7.5pt;
+      color: #78716c;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 2px;
+    }
+
+    .esig-details .esig-detail-value {
+      font-weight: 600;
+      color: #1c1917;
+      border-bottom: 1px solid #d6d3d1;
+      padding-bottom: 2px;
+      min-height: 18px;
+    }
+
+    .esig-note {
+      margin-top: 14px;
+      font-size: 8pt;
+      color: #78716c;
+      font-style: italic;
+    }
+
+    /* === Signed Copy Stamp === */
+    .signed-copy-stamp {
+      position: fixed;
+      bottom: 100px;
+      right: 40px;
+      padding: 8px 18px;
+      border: 3px solid #248374;
+      border-radius: 8px;
+      color: #248374;
+      font-size: 14pt;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      transform: rotate(-5deg);
+      opacity: 0.7;
+      pointer-events: none;
+      z-index: 5;
+    }
+
     /* === AI Disclaimer Banner === */
     .disclaimer-banner {
       margin-top: 40px;
@@ -363,6 +471,43 @@ export function buildPdfHtml(options: PdfTemplateOptions): string {
   <div class="doc-body">
     ${bodyContent}
   </div>
+
+  <!-- E-Signature Section (only when signed) -->
+  ${
+    signature && signature.isSigned
+      ? `
+  <div class="esig-section">
+    <div class="esig-title">✍️ Electronically Signed</div>
+    <div class="esig-row">
+      <div class="esig-draw-area">
+        ${
+          signature.signatureImage
+            ? `<img src="${signature.signatureImage}" alt="Signature" />`
+            : `<div style="height: 80px;"></div>`
+        }
+        <div class="esig-line">Signature</div>
+      </div>
+      <div class="esig-details">
+        <div class="esig-detail-row">
+          <div class="esig-detail-label">Printed Name</div>
+          <div class="esig-detail-value">${escapeHtml(signature.signerName)}</div>
+        </div>
+        <div class="esig-detail-row">
+          <div class="esig-detail-label">Date</div>
+          <div class="esig-detail-value">${escapeHtml(signature.signDate)}</div>
+        </div>
+      </div>
+    </div>
+    <div class="esig-note">
+      Digitally signed via <strong>Munsif AI</strong>. This is an electronic signature
+      and may be subject to verification under the Information Technology Act, 2000.
+    </div>
+  </div>`
+      : ""
+  }
+
+  <!-- Signed Copy Stamp -->
+  ${signature && signature.isSigned ? '<div class="signed-copy-stamp">SIGNED COPY</div>' : ""}
 
   <!-- AI Disclaimer Banner -->
   <div class="disclaimer-banner">

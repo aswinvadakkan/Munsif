@@ -216,7 +216,19 @@
     "regenerate": "পুনরায় তৈরি করুন",
     "aiGenerationFallback": "AI নির্মাণ উপলব্ধ নয় — টেমপ্লেট-ভিত্তিক প্রাকদর্শন দেখানো হচ্ছে",
     "stampDutyTitle": "স্ট্যাম্প ডিউটি ক্যালকুলেটর",
-    "stampDutySubtitle": "আপনার রাজ্যের জন্য আনুমানিক স্ট্যাম্প ডিউটি দেখুন"
+    "stampDutySubtitle": "আপনার রাজ্যের জন্য আনুমানিক স্ট্যাম্প ডিউটি দেখুন",
+    "signatureTitle": "আপনার দলিল স্বাক্ষর করুন",
+    "signatureSubtitle": "দলিলটি আইনত কার্যকর করতে নিচে আপনার স্বাক্ষর আঁকুন",
+    "signaturePadLabel": "আপনার স্বাক্ষর আঁকুন",
+    "signatureClearButton": "মুছুন",
+    "signatureUndoButton": "পূর্বাবস্থা",
+    "signaturePrintedName": "মুদ্রিত নাম",
+    "signaturePrintedNamePlaceholder": "আপনার সম্পূর্ণ আইনি নাম টাইপ করুন",
+    "signatureDate": "তারিখ",
+    "signatureConfirmationCheckbox": "আমি নিশ্চিত করছি যে এটি আমার আইনি স্বাক্ষর এবং আমি এই দলিলের শর্তাবলীতে সম্মত",
+    "signAndDownload": "স্বাক্ষর করুন এবং ডাউনলোড করুন",
+    "signingDocument": "স্বাক্ষর করা হচ্ছে...",
+    "signedCopyBadge": "স্বাক্ষরিত কপি"
   },
   "languageSwitcher": {
     "en": "EN",

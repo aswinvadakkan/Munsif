@@ -12,7 +12,7 @@
  */
 
 import { chromium, type Browser } from "playwright";
-import { buildPdfHtml, type PdfTemplateOptions } from "./pdf-template";
+import { buildPdfHtml, type PdfTemplateOptions, type SignatureOptions } from "./pdf-template";
 
 export interface GeneratePdfOptions {
   /** The document body content (plain text or basic HTML) */
@@ -23,6 +23,8 @@ export interface GeneratePdfOptions {
   documentType: string;
   /** Language for i18n */
   language?: "en" | "hi";
+  /** E-signature data — when provided, embeds signature in the PDF */
+  signature?: SignatureOptions;
 }
 
 export interface GeneratePdfResult {
@@ -78,6 +80,7 @@ export async function generatePdf(
     title,
     documentType,
     language = "en",
+    signature,
   } = options;
 
   // Format generation timestamp in Indian locale
@@ -98,6 +101,7 @@ export async function generatePdf(
     bodyContent,
     generationTimestamp,
     language,
+    signature,
   });
 
   const browser = await getBrowser();

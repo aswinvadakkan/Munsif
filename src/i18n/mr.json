@@ -216,7 +216,19 @@
     "regenerate": "पुन्हा तयार करा",
     "aiGenerationFallback": "AI निर्मिती उपलब्ध नाही — टेम्पलेट-आधारित पूर्वावलोकन दाखवले जात आहे",
     "stampDutyTitle": "स्टॅम्प ड्युटी कॅल्क्युलेटर",
-    "stampDutySubtitle": "तुमच्या राज्यासाठी अंदाजे स्टॅम्प ड्युटी तपासा"
+    "stampDutySubtitle": "तुमच्या राज्यासाठी अंदाजे स्टॅम्प ड्युटी तपासा",
+    "signatureTitle": "तुमच्या दस्तऐवजावर स्वाक्षरी करा",
+    "signatureSubtitle": "दस्तऐवज कायदेशीररित्या अंमलात आणण्यासाठी खाली तुमची स्वाक्षरी काढा",
+    "signaturePadLabel": "तुमची स्वाक्षरी काढा",
+    "signatureClearButton": "साफ करा",
+    "signatureUndoButton": "पूर्ववत करा",
+    "signaturePrintedName": "मुद्रित नाव",
+    "signaturePrintedNamePlaceholder": "तुमचे पूर्ण कायदेशीर नाव टाइप करा",
+    "signatureDate": "दिनांक",
+    "signatureConfirmationCheckbox": "मी पुष्टी करतो की ही माझी कायदेशीर स्वाक्षरी आहे आणि मी या दस्तऐवजाच्या अटींशी सहमत आहे",
+    "signAndDownload": "स्वाक्षरी करा आणि डाउनलोड करा",
+    "signingDocument": "स्वाक्षरी केली जात आहे...",
+    "signedCopyBadge": "स्वाक्षरी केलेली प्रत"
   },
   "languageSwitcher": {
     "en": "EN",

@@ -7,6 +7,8 @@ import { getTemplateById } from "@/lib/document-templates";
 import { generateDocumentPreview } from "@/lib/document-previews";
 import { useRazorpay } from "@/lib/useRazorpay";
 import StampDutyCalculator from "@/components/StampDutyCalculator";
+import SignaturePad from "@/components/SignaturePad";
+import { storeSignatureMetadata, getSignatureMetadata, type SignatureMetadata } from "@/lib/esign";
 
 type GenerationMethod = "idle" | "llm" | "template";
 
@@ -96,6 +98,16 @@ export default function DocumentPreviewPage() {
   // Stamp duty collapsible
   const [showStampDuty, setShowStampDuty] = useState(false);
 
+  // E-signature state
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
+  const [signerName, setSignerName] = useState("");
+  const [signDate, setSignDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+  const [signatureConfirmed, setSignatureConfirmed] = useState(false);
+  const [isSigning, setIsSigning] = useState(false);
+  const [hasSigned, setHasSigned] = useState(false);
+
   // Razorpay hook
   const {
     isLoaded: rzpLoaded,
@@ -116,6 +128,13 @@ export default function DocumentPreviewPage() {
       }
     } catch {
       // ignore
+    }
+
+    // Restore signature state
+    const savedSig = getSignatureMetadata(type);
+    if (savedSig) {
+      setHasSigned(true);
+      setSignerName(savedSig.signerName);
     }
   }, [type]);
 
@@ -474,15 +493,43 @@ export default function DocumentPreviewPage() {
         bodyContent = templatePreviewContent;
       }
 
+      // Build the request body
+      const requestBody: Record<string, unknown> = {
+        bodyContent,
+        title: template.name,
+        documentType: template.name,
+        language: "en",
+      };
+
+      // Attach signature if signing
+      if (hasSigned || (signatureDataUrl && signerName && signatureConfirmed)) {
+        const displayDate = new Date(signDate).toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        });
+
+        requestBody.signature = {
+          signatureImage: signatureDataUrl || undefined,
+          signerName: signerName,
+          signDate: displayDate,
+          isSigned: true,
+        };
+
+        // Persist signature metadata
+        storeSignatureMetadata(type, {
+          signedAt: new Date().toISOString(),
+          signerName: signerName,
+          documentId: `MUNSIF-${Date.now().toString(36).toUpperCase()}`,
+          documentType: type,
+          method: "draw",
+        });
+      }
+
       const response = await fetch("/api/generate-pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          bodyContent,
-          title: template.name,
-          documentType: template.name,
-          language: "en",
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -498,7 +545,7 @@ export default function DocumentPreviewPage() {
         .replace(/[^a-zA-Z0-9\s-]/g, "")
         .replace(/\s+/g, "-")
         .toLowerCase();
-      const fileName = `${safeName}-Munsif-AI.pdf`;
+      const fileName = `${safeName}-Munsif-AI${hasSigned || (signatureDataUrl && signerName) ? "-signed" : ""}.pdf`;
 
       const link = document.createElement("a");
       link.href = url;
@@ -507,6 +554,11 @@ export default function DocumentPreviewPage() {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
+
+      // Mark as signed after successful download
+      if (signatureDataUrl && signerName && signatureConfirmed) {
+        setHasSigned(true);
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to download PDF";
@@ -996,53 +1048,59 @@ export default function DocumentPreviewPage() {
 
               <div className="flex-shrink-0">
                 {paymentState === "success" || hasPaid ? (
-                  <button
-                    onClick={handleDownloadPdf}
-                    disabled={isDownloading}
-                    className="btn-accent min-w-[180px] disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {isDownloading ? (
-                      <>
-                        <svg
-                          className="animate-spin w-4 h-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
+                  hasSigned ? (
+                    <button
+                      onClick={handleDownloadPdf}
+                      disabled={isDownloading}
+                      className="btn-accent min-w-[180px] disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {isDownloading ? (
+                        <>
+                          <svg
+                            className="animate-spin w-4 h-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            />
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                            />
+                          </svg>
+                          {t("generatingPDF")}
+                        </>
+                      ) : (
+                        <>
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
                             stroke="currentColor"
-                            strokeWidth="4"
-                          />
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                          />
-                        </svg>
-                        {t("generatingPDF")}
-                      </>
-                    ) : (
-                      <>
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                          />
-                        </svg>
-                        {t("downloadPDF")}
-                      </>
-                    )}
-                  </button>
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            />
+                          </svg>
+                          {t("downloadPDF")}
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <span className="text-xs text-stone-400 block text-center">
+                      {t("signatureTitle")}
+                    </span>
+                  )
                 ) : paymentState === "loading" ? (
                   <button
                     disabled
@@ -1189,6 +1247,172 @@ export default function DocumentPreviewPage() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* E-Signature Section — shown after payment is complete */}
+      {(paymentState === "success" || hasPaid) && !hasSigned && (
+        <div className="bg-white rounded-2xl border border-stone-200 shadow-card overflow-hidden mb-6">
+          <div className="h-1.5 bg-teal-600" />
+          <div className="px-6 md:px-10 py-5">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center flex-shrink-0">
+                <svg
+                  className="w-5 h-5 text-teal-700"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-display font-semibold text-stone-900 text-base">
+                  {t("signatureTitle")}
+                </h3>
+                <p className="text-stone-500 text-sm">
+                  {t("signatureSubtitle")}
+                </p>
+              </div>
+            </div>
+
+            {/* Signature Pad */}
+            <div className="mb-5">
+              <SignaturePad
+                onSignatureChange={setSignatureDataUrl}
+                label={t("signaturePadLabel")}
+                clearLabel={t("signatureClearButton")}
+                undoLabel={t("signatureUndoButton")}
+                height={160}
+              />
+            </div>
+
+            {/* Printed Name + Date */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-1.5">
+                  {t("signaturePrintedName")}
+                </label>
+                <input
+                  type="text"
+                  value={signerName}
+                  onChange={(e) => setSignerName(e.target.value)}
+                  placeholder={t("signaturePrintedNamePlaceholder")}
+                  className="w-full px-4 py-2.5 rounded-xl border border-stone-300 bg-white text-sm text-stone-900 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-1.5">
+                  {t("signatureDate")}
+                </label>
+                <input
+                  type="date"
+                  value={signDate}
+                  onChange={(e) => setSignDate(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-stone-300 bg-white text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Confirmation Checkbox */}
+            <label className="flex items-start gap-3 mb-5 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={signatureConfirmed}
+                onChange={(e) => setSignatureConfirmed(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-stone-300 text-teal-600 focus:ring-teal-500 cursor-pointer flex-shrink-0"
+              />
+              <span className="text-sm text-stone-600 group-hover:text-stone-800 transition-colors leading-relaxed">
+                {t("signatureConfirmationCheckbox")}
+              </span>
+            </label>
+
+            {/* Sign & Download Button */}
+            <button
+              onClick={handleDownloadPdf}
+              disabled={
+                isDownloading ||
+                !signatureDataUrl ||
+                !signerName.trim() ||
+                !signatureConfirmed
+              }
+              className="btn-accent w-full sm:w-auto px-8 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isDownloading ? (
+                <>
+                  <svg
+                    className="animate-spin w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                    />
+                  </svg>
+                  {t("signingDocument")}
+                </>
+              ) : (
+                <>
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                    />
+                  </svg>
+                  {t("signAndDownload")}
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Signed badge — shown after document is signed */}
+      {hasSigned && (
+        <div className="bg-teal-50 border border-teal-200 rounded-xl px-4 py-3 mb-6 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-teal-600 flex items-center justify-center flex-shrink-0">
+            <svg
+              className="w-4 h-4 text-white"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fillRule="evenodd"
+                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </div>
+          <div>
+            <p className="text-teal-800 text-sm font-semibold">
+              {t("signedCopyBadge")}
+            </p>
+            <p className="text-teal-600 text-xs">
+              {t("signaturePrintedName")}: {signerName}
+            </p>
           </div>
         </div>
       )}

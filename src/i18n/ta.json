@@ -216,7 +216,19 @@
     "regenerate": "மீண்டும் உருவாக்கு",
     "aiGenerationFallback": "AI உருவாக்கம் கிடைக்கவில்லை — டெம்ப்ளேட் அடிப்படையிலான முன்னோட்டம் காட்டப்படுகிறது",
     "stampDutyTitle": "முத்திரை வரி கால்குலேட்டர்",
-    "stampDutySubtitle": "உங்கள் மாநிலத்திற்கான தோராயமான முத்திரை வரியைச் சரிபார்க்கவும்"
+    "stampDutySubtitle": "உங்கள் மாநிலத்திற்கான தோராயமான முத்திரை வரியைச் சரிபார்க்கவும்",
+    "signatureTitle": "உங்கள் ஆவணத்தில் கையொப்பமிடவும்",
+    "signatureSubtitle": "இந்த ஆவணத்தை சட்டப்பூர்வமாக செயல்படுத்த கீழே உங்கள் கையொப்பத்தை வரையவும்",
+    "signaturePadLabel": "உங்கள் கையொப்பத்தை வரையவும்",
+    "signatureClearButton": "அழி",
+    "signatureUndoButton": "செயல்தவிர்",
+    "signaturePrintedName": "அச்சிடப்பட்ட பெயர்",
+    "signaturePrintedNamePlaceholder": "உங்கள் முழு சட்டப்பூர்வ பெயரை தட்டச்சு செய்யவும்",
+    "signatureDate": "தேதி",
+    "signatureConfirmationCheckbox": "இது எனது சட்டப்பூர்வ கையொப்பம் என்பதை உறுதிப்படுத்துகிறேன் மற்றும் இந்த ஆவணத்தின் விதிமுறைகளை ஒப்புக்கொள்கிறேன்",
+    "signAndDownload": "கையொப்பமிட்டு பதிவிறக்கவும்",
+    "signingDocument": "கையொப்பமிடப்படுகிறது...",
+    "signedCopyBadge": "கையொப்பமிடப்பட்ட நகல்"
   },
   "languageSwitcher": {
     "en": "EN",
