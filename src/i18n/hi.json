@@ -214,7 +214,9 @@
     "aiDraftingTakeMoment": "हमारा AI आपका कानूनी दस्तावेज़ तैयार कर रहा है — इसमें एक क्षण लगेगा",
     "aiGeneratedWithTokens": "AI-जनित • {tokens} टोकन उपयोग किए गए",
     "regenerate": "पुनः उत्पन्न करें",
-    "aiGenerationFallback": "AI जनरेशन उपलब्ध नहीं — टेम्पलेट-आधारित पूर्वावलोकन दिखाया जा रहा है"
+    "aiGenerationFallback": "AI जनरेशन उपलब्ध नहीं — टेम्पलेट-आधारित पूर्वावलोकन दिखाया जा रहा है",
+    "stampDutyTitle": "स्टाम्प ड्यूटी कैलकुलेटर",
+    "stampDutySubtitle": "अपने राज्य के लिए अनुमानित स्टाम्प ड्यूटी देखें"
   },
   "languageSwitcher": {
     "en": "EN",

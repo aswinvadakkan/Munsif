@@ -214,7 +214,9 @@
     "aiDraftingTakeMoment": "आमचे AI तुमचा कायदेशीर दस्तऐवज तयार करत आहे — यास थोडा वेळ लागेल",
     "aiGeneratedWithTokens": "AI-निर्मित • {tokens} टोकन्स वापरले",
     "regenerate": "पुन्हा तयार करा",
-    "aiGenerationFallback": "AI निर्मिती उपलब्ध नाही — टेम्पलेट-आधारित पूर्वावलोकन दाखवले जात आहे"
+    "aiGenerationFallback": "AI निर्मिती उपलब्ध नाही — टेम्पलेट-आधारित पूर्वावलोकन दाखवले जात आहे",
+    "stampDutyTitle": "स्टॅम्प ड्युटी कॅल्क्युलेटर",
+    "stampDutySubtitle": "तुमच्या राज्यासाठी अंदाजे स्टॅम्प ड्युटी तपासा"
   },
   "languageSwitcher": {
     "en": "EN",

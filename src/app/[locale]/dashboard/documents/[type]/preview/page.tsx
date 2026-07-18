@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { getTemplateById } from "@/lib/document-templates";
 import { generateDocumentPreview } from "@/lib/document-previews";
 import { useRazorpay } from "@/lib/useRazorpay";
+import StampDutyCalculator from "@/components/StampDutyCalculator";
 
 type GenerationMethod = "idle" | "llm" | "template";
 
@@ -91,6 +92,9 @@ export default function DocumentPreviewPage() {
   const [generationMethod, setGenerationMethod] = useState<GenerationMethod>("idle");
   const [aiTokens, setAiTokens] = useState<number>(0);
   const [generationError, setGenerationError] = useState<string | null>(null);
+
+  // Stamp duty collapsible
+  const [showStampDuty, setShowStampDuty] = useState(false);
 
   // Razorpay hook
   const {
@@ -776,6 +780,62 @@ export default function DocumentPreviewPage() {
               </svg>
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Stamp Duty Info — Collapsible */}
+      {hasContent && (
+        <div className="bg-white rounded-2xl border border-stone-200 shadow-card overflow-hidden mb-6">
+          <button
+            onClick={() => setShowStampDuty(!showStampDuty)}
+            className="w-full flex items-center justify-between px-6 md:px-10 py-4 hover:bg-stone-50 transition-colors"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center flex-shrink-0">
+                <svg
+                  className="w-4 h-4 text-teal-700"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                  />
+                </svg>
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-medium text-stone-800">
+                  {t("stampDutyTitle")}
+                </p>
+                <p className="text-xs text-stone-500">
+                  {t("stampDutySubtitle")}
+                </p>
+              </div>
+            </div>
+            <svg
+              className={`w-5 h-5 text-stone-400 transition-transform duration-200 ${
+                showStampDuty ? "rotate-180" : ""
+              }`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </button>
+          {showStampDuty && (
+            <div className="px-6 md:px-10 pb-5">
+              <StampDutyCalculator />
+            </div>
+          )}
         </div>
       )}
 

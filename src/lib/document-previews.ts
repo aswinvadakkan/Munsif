@@ -5,6 +5,17 @@
  */
 
 import type { DocumentTemplate } from "./document-templates";
+import { buildStampDutySection, type StampDutyDocType } from "./stamp-duty";
+
+/** Resolve a state key from form data */
+function resolveStateKey(data: Record<string, string>): string {
+  return (
+    data.governingState ||
+    data.state ||
+    data.jurisdiction ||
+    "delhi"
+  );
+}
 
 function getSelectLabel(
   value: string | undefined,
@@ -135,6 +146,10 @@ export function buildRentalAgreementPreview(data: Record<string, string>): strin
   // Legal reference
   parts.push(`<p class="ica-ref">This Agreement is governed by the provisions of the Indian Contract Act, 1872 and applicable state-specific rent control legislation. Stamp duty as applicable under the Indian Stamp Act, 1899 and relevant state stamp acts shall be borne by the Tenant.</p>`);
 
+  // Stamp duty section
+  const rentalStateKey = resolveStateKey(data);
+  parts.push(buildStampDutySection(rentalStateKey, "rent-agreement"));
+
   // Signatures
   parts.push(`<div class="signature-block">`);
   parts.push(`<p>IN WITNESS WHEREOF, the parties hereto have signed this Agreement on the date first above written.</p>`);
@@ -145,10 +160,10 @@ export function buildRentalAgreementPreview(data: Record<string, string>): strin
   parts.push(`</div>`);
 
   return parts.join("\n");
-}
+  }
 
-// ============================================================
-// 2. NDA PREVIEW
+  // ============================================================
+  // 2. NDA PREVIEW
 // ============================================================
 export function buildNDAPreview(data: Record<string, string>): string {
   const today = todayFormatted();
@@ -254,6 +269,10 @@ export function buildNDAPreview(data: Record<string, string>): string {
   parts.push(`<p>This Agreement shall be governed by and construed in accordance with the laws of India. Any disputes arising out of this Agreement shall be subject to the exclusive jurisdiction of the courts in ${gs}.</p>`);
   parts.push(`<p class="ica-ref">Reference: Indian Contract Act, 1872 — Sections pertaining to lawful object, consideration, and agreements in restraint of trade (Section 27). The confidentiality obligations herein are reasonable and limited in scope and duration.</p>`);
 
+  // Stamp duty section
+  const ndaStateKey = resolveStateKey(data);
+  parts.push(buildStampDutySection(ndaStateKey, "nda"));
+
   // Signatures
   parts.push(`<div class="signature-block">`);
   parts.push(`<p>IN WITNESS WHEREOF, the parties hereto have executed this Agreement on the date first above written.</p>`);
@@ -264,10 +283,10 @@ export function buildNDAPreview(data: Record<string, string>): string {
   parts.push(`</div>`);
 
   return parts.join("\n");
-}
+  }
 
-// ============================================================
-// 3. EMPLOYMENT CONTRACT PREVIEW
+  // ============================================================
+  // 3. EMPLOYMENT CONTRACT PREVIEW
 // ============================================================
 export function buildEmploymentContractPreview(data: Record<string, string>): string {
   const today = todayFormatted();
@@ -425,6 +444,9 @@ export function buildFreelanceAgreementPreview(data: Record<string, string>): st
   // Legal reference
   parts.push(`<p class="ica-ref">This Agreement is governed by the Indian Contract Act, 1872. For the avoidance of doubt, this is a contract for services and does not create an employer-employee relationship. GST registration requirements under the CGST Act, 2017 may apply if the Freelancer's aggregate turnover exceeds the prescribed threshold.</p>`);
 
+  // Stamp duty section
+  parts.push(buildStampDutySection(resolveStateKey(data), "general-agreement"));
+
   // Signatures
   parts.push(`<div class="signature-block">`);
   parts.push(`<p>IN WITNESS WHEREOF, the parties hereto have executed this Agreement on the date first above written.</p>`);
@@ -507,6 +529,10 @@ export function buildPartnershipDeedPreview(data: Record<string, string>): strin
 
   // Legal reference
   parts.push(`<p class="ica-ref">This Partnership Deed is governed by the Indian Partnership Act, 1932. The mutual rights and duties of the partners shall be as provided in this Deed and, in the absence of any provision herein, as provided under the Act. The firm shall be registered under Section 58 of the Indian Partnership Act, 1932 with the Registrar of Firms.</p>`);
+
+  // Stamp duty section
+  const psStateKey = resolveStateKey(data);
+  parts.push(buildStampDutySection(psStateKey, "partnership"));
 
   // Signatures
   parts.push(`<div class="signature-block">`);
@@ -629,6 +655,9 @@ export function buildAffidavitPreview(data: Record<string, string>): string {
 
   // Legal reference
   parts.push(`<p class="ica-ref">This affidavit is sworn under the provisions of the Indian Oaths Act, 1969 and the Code of Civil Procedure, 1908 (Order XIX). The Deponent understands that making a false statement in this affidavit is punishable under Section 193, 199, and 200 of the Indian Penal Code, 1860.</p>`);
+
+  // Stamp duty section
+  parts.push(buildStampDutySection(resolveStateKey(data), "affidavit"));
 
   // Signatures
   parts.push(`<div class="signature-block">`);

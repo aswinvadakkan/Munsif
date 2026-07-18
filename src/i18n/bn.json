@@ -214,7 +214,9 @@
     "aiDraftingTakeMoment": "আমাদের AI আপনার আইনি দলিল খসড়া করছে — এটি একটু সময় নেবে",
     "aiGeneratedWithTokens": "AI-নির্মিত • {tokens} টোকেন ব্যবহৃত",
     "regenerate": "পুনরায় তৈরি করুন",
-    "aiGenerationFallback": "AI নির্মাণ উপলব্ধ নয় — টেমপ্লেট-ভিত্তিক প্রাকদর্শন দেখানো হচ্ছে"
+    "aiGenerationFallback": "AI নির্মাণ উপলব্ধ নয় — টেমপ্লেট-ভিত্তিক প্রাকদর্শন দেখানো হচ্ছে",
+    "stampDutyTitle": "স্ট্যাম্প ডিউটি ক্যালকুলেটর",
+    "stampDutySubtitle": "আপনার রাজ্যের জন্য আনুমানিক স্ট্যাম্প ডিউটি দেখুন"
   },
   "languageSwitcher": {
     "en": "EN",
