@@ -4,7 +4,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useRouter, usePathname } from "@/i18n/routing";
 import { useTransition, useState, useRef, useEffect } from "react";
 
-type LocaleKey = "en" | "hi" | "ta" | "te" | "mr" | "bn";
+type LocaleKey = "en" | "hi" | "ta" | "te" | "mr" | "bn" | "ml" | "kn";
 
 const LANGUAGES: { code: LocaleKey; flag: string; nativeName: string }[] = [
   { code: "en", flag: "🇬🇧", nativeName: "English" },
@@ -13,6 +13,8 @@ const LANGUAGES: { code: LocaleKey; flag: string; nativeName: string }[] = [
   { code: "te", flag: "🇮🇳", nativeName: "తెలుగు" },
   { code: "mr", flag: "🇮🇳", nativeName: "मराठी" },
   { code: "bn", flag: "🇮🇳", nativeName: "বাংলা" },
+  { code: "ml", flag: "🇮🇳", nativeName: "മലയാളം" },
+  { code: "kn", flag: "🇮🇳", nativeName: "ಕನ್ನಡ" },
 ];
 
 export function LanguageSwitcher() {
