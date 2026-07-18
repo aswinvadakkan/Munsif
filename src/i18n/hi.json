@@ -207,7 +207,14 @@
     "completingPayment": "Razorpay विंडो में अपना भुगतान पूरा करें...",
     "loadingRazorpay": "Razorpay चेकआउट लोड हो रहा है...",
     "razorpayNotLoaded": "Razorpay लोड नहीं हो सका",
-    "switchToCashfree": "Cashfree पर स्विच करें"
+    "switchToCashfree": "Cashfree पर स्विच करें",
+    "templateGenerated": "टेम्पलेट-जनित",
+    "generatingWithAI": "AI मसौदा तैयार कर रहा है...",
+    "generatingWithAIDesc": "AI के साथ दस्तावेज़ तैयार हो रहा है...",
+    "aiDraftingTakeMoment": "हमारा AI आपका कानूनी दस्तावेज़ तैयार कर रहा है — इसमें एक क्षण लगेगा",
+    "aiGeneratedWithTokens": "AI-जनित • {tokens} टोकन उपयोग किए गए",
+    "regenerate": "पुनः उत्पन्न करें",
+    "aiGenerationFallback": "AI जनरेशन उपलब्ध नहीं — टेम्पलेट-आधारित पूर्वावलोकन दिखाया जा रहा है"
   },
   "languageSwitcher": {
     "en": "EN",

@@ -7,6 +7,8 @@ import { getTemplateById } from "@/lib/document-templates";
 import { generateDocumentPreview } from "@/lib/document-previews";
 import { useRazorpay } from "@/lib/useRazorpay";
 
+type GenerationMethod = "idle" | "llm" | "template";
+
 type PaymentState = "idle" | "loading" | "pending" | "success" | "failed";
 type PaymentMethod = "razorpay" | "cashfree";
 
@@ -83,6 +85,13 @@ export default function DocumentPreviewPage() {
   const [hasPaid, setHasPaid] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>("razorpay");
 
+  // AI generation state
+  const [aiContent, setAiContent] = useState<string>("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationMethod, setGenerationMethod] = useState<GenerationMethod>("idle");
+  const [aiTokens, setAiTokens] = useState<number>(0);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+
   // Razorpay hook
   const {
     isLoaded: rzpLoaded,
@@ -105,6 +114,50 @@ export default function DocumentPreviewPage() {
       // ignore
     }
   }, [type]);
+
+  // Trigger AI generation when data is loaded and template is available
+  useEffect(() => {
+    if (loading || !template || Object.keys(formData).length === 0) return;
+
+    const generateDraft = async () => {
+      setIsGenerating(true);
+      setGenerationError(null);
+      setGenerationMethod("idle");
+
+      try {
+        const response = await fetch("/api/generate-draft", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            documentType: type,
+            formData,
+            language: "en",
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Draft generation failed (${response.status})`);
+        }
+
+        const data = await response.json();
+        setAiContent(data.content);
+        setAiTokens(data.tokens || 0);
+        setGenerationMethod(data.method || "template");
+      } catch (err) {
+        console.error("AI generation error:", err);
+        setGenerationError(
+          err instanceof Error ? err.message : "Failed to generate AI draft"
+        );
+        // Fall back to template
+        setAiContent("");
+        setGenerationMethod("template");
+      } finally {
+        setIsGenerating(false);
+      }
+    };
+
+    generateDraft();
+  }, [loading, template, type, formData]);
 
   useEffect(() => {
     if (!template) return;
@@ -156,11 +209,17 @@ export default function DocumentPreviewPage() {
     setPaymentState("idle");
   }, [searchParams, type, template, t]);
 
-  const previewContent = template
+  // Determine what content to show:
+  // - LLM-generated text takes priority when available
+  // - Fall back to template-based HTML preview
+  const templatePreviewContent = template
     ? generateDocumentPreview(template, formData)
     : "";
 
-  const hasContent = previewContent.trim().length > 0;
+  const hasAiContent = aiContent.trim().length > 0;
+  const displayContent = hasAiContent ? aiContent : templatePreviewContent;
+  const isHtmlContent = !hasAiContent;
+  const hasContent = displayContent.trim().length > 0;
 
   // --- Cashfree payment flow ---
   const handleCashfreePay = useCallback(async () => {
@@ -343,17 +402,79 @@ export default function DocumentPreviewPage() {
     }
   }, [selectedMethod, handleRazorpayPay, handleCashfreePay, type]);
 
+  const handleRegenerate = useCallback(async () => {
+    if (!template || Object.keys(formData).length === 0) return;
+    setIsGenerating(true);
+    setGenerationError(null);
+
+    try {
+      const response = await fetch("/api/generate-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          documentType: type,
+          formData,
+          language: "en",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Draft generation failed (${response.status})`);
+      }
+
+      const data = await response.json();
+      setAiContent(data.content);
+      setAiTokens(data.tokens || 0);
+      setGenerationMethod(data.method || "template");
+    } catch (err) {
+      console.error("AI regeneration error:", err);
+      setGenerationError(
+        err instanceof Error ? err.message : "Failed to regenerate AI draft"
+      );
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [template, type, formData]);
+
   const handleDownloadPdf = async () => {
-    if (!template || !previewContent) return;
+    if (!template || !displayContent) return;
     setIsDownloading(true);
     setDownloadError(null);
 
     try {
+      // For AI-generated plain text, wrap it in a simple HTML structure for PDF
+      let bodyContent: string;
+      if (hasAiContent) {
+        // Convert plain text to HTML for PDF rendering
+        const escaped = displayContent
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+        const htmlText = escaped
+          .split("\n")
+          .map((line) => {
+            const trimmed = line.trim();
+            if (!trimmed) return "<br/>";
+            if (
+              trimmed === trimmed.toUpperCase() &&
+              trimmed.length > 3 &&
+              !trimmed.startsWith("&")
+            ) {
+              return `<h2>${trimmed}</h2>`;
+            }
+            return `<p>${trimmed}</p>`;
+          })
+          .join("\n");
+        bodyContent = `<div class="ai-generated-doc">${htmlText}</div>`;
+      } else {
+        bodyContent = templatePreviewContent;
+      }
+
       const response = await fetch("/api/generate-pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          bodyContent: previewContent,
+          bodyContent,
           title: template.name,
           documentType: template.name,
           language: "en",
@@ -522,22 +643,138 @@ export default function DocumentPreviewPage() {
               </span>
               <span>•</span>
               <span>{t("munsifGenerated")}</span>
-              <span>•</span>
-              <span>{t("draftVersion")}</span>
+              {generationMethod === "llm" && (
+                <>
+                  <span>•</span>
+                  <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.653a.17.17 0 01.03.003l3.726.248a2 2 0 01.767.317V12a2 2 0 00-2-2H5a2 2 0 00-2 2v2a2 2 0 002 2h.27a2 2 0 01-.27-1v-1z" />
+                    </svg>
+                    Powered by AI
+                  </span>
+                </>
+              )}
+              {generationMethod === "template" && !isGenerating && (
+                <>
+                  <span>•</span>
+                  <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                    {t("templateGenerated")}
+                  </span>
+                </>
+              )}
+              {isGenerating && (
+                <>
+                  <span>•</span>
+                  <span className="inline-flex items-center gap-1 text-purple-600 animate-pulse">
+                    <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    {t("generatingWithAI")}
+                  </span>
+                </>
+              )}
             </div>
           </div>
 
           <div className="px-6 md:px-10 py-8">
-            <div
-              className="font-serif text-stone-800 text-sm md:text-[15px] leading-[1.8] document-preview-content"
-              dangerouslySetInnerHTML={{ __html: previewContent }}
-            />
+            {/* Generating state */}
+            {isGenerating && (
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="relative mb-6">
+                  <div className="w-16 h-16 rounded-full bg-purple-100 flex items-center justify-center">
+                    <svg className="animate-spin w-8 h-8 text-purple-600" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  </div>
+                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-purple-600 rounded-full flex items-center justify-center">
+                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.653a.17.17 0 01.03.003l3.726.248a2 2 0 01.767.317V12a2 2 0 00-2-2H5a2 2 0 00-2 2v2a2 2 0 002 2h.27a2 2 0 01-.27-1v-1z" />
+                    </svg>
+                  </div>
+                </div>
+                <p className="text-stone-700 font-medium text-sm mb-1">
+                  {t("generatingWithAIDesc")}
+                </p>
+                <p className="text-stone-400 text-xs">{t("aiDraftingTakeMoment")}</p>
+              </div>
+            )}
+
+            {/* AI-generated plain text content */}
+            {!isGenerating && hasAiContent && (
+              <div>
+                <div className="font-serif text-stone-800 text-sm md:text-[15px] leading-[1.8] whitespace-pre-wrap document-preview-content">
+                  {displayContent}
+                </div>
+                {/* Regenerate button */}
+                <div className="mt-6 pt-4 border-t border-stone-200 flex items-center justify-between">
+                  <span className="text-xs text-stone-400">
+                    {t("aiGeneratedWithTokens", { tokens: aiTokens.toLocaleString("en-IN") })}
+                  </span>
+                  <button
+                    onClick={handleRegenerate}
+                    disabled={isGenerating}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-purple-600 hover:text-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {isGenerating ? (
+                      <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    )}
+                    {t("regenerate")}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Template-based HTML content (fallback) */}
+            {!isGenerating && !hasAiContent && (
+              <div
+                className="font-serif text-stone-800 text-sm md:text-[15px] leading-[1.8] document-preview-content"
+                dangerouslySetInnerHTML={{ __html: templatePreviewContent }}
+              />
+            )}
+
+            {/* Empty state when no content at all */}
+            {!isGenerating && !hasContent && generationMethod === "template" && (
+              <p className="text-stone-400 italic font-sans">No preview content available.</p>
+            )}
           </div>
 
           <div className="bg-amber-50 border-t border-amber-100 px-6 md:px-10 py-3">
             <p className="text-amber-700 text-[11px] leading-relaxed">
               ⚠️ {t("disclaimerFooter")}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Generation error */}
+      {generationError && (
+        <div className="bg-purple-50 border border-purple-200 rounded-xl px-4 py-3 mb-4">
+          <div className="flex items-start gap-2">
+            <span className="text-purple-500 text-sm flex-shrink-0 mt-0.5">🤖</span>
+            <div className="flex-1">
+              <p className="text-purple-800 text-sm font-medium">
+                {t("aiGenerationFallback")}
+              </p>
+              <p className="text-purple-600 text-xs mt-0.5">{generationError}</p>
+            </div>
+            <button
+              onClick={() => setGenerationError(null)}
+              className="text-purple-400 hover:text-purple-600 ml-auto flex-shrink-0"
+              aria-label="Dismiss"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
       )}

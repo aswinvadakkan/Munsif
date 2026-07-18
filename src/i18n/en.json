@@ -207,7 +207,14 @@
     "completingPayment": "Complete your payment in the Razorpay window...",
     "loadingRazorpay": "Loading Razorpay checkout...",
     "razorpayNotLoaded": "Razorpay Could Not Be Loaded",
-    "switchToCashfree": "Switch to Cashfree"
+    "switchToCashfree": "Switch to Cashfree",
+    "templateGenerated": "Template-generated",
+    "generatingWithAI": "AI drafting...",
+    "generatingWithAIDesc": "Generating document with AI...",
+    "aiDraftingTakeMoment": "Our AI is drafting your legal document — this takes a moment",
+    "aiGeneratedWithTokens": "AI-generated • {tokens} tokens used",
+    "regenerate": "Regenerate",
+    "aiGenerationFallback": "AI generation unavailable — showing template-based preview"
   },
   "languageSwitcher": {
     "en": "EN",
